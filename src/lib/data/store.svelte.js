@@ -70,10 +70,15 @@ export async function uploadPaymentProof(participantId, file) {
 	const fileName = `proof-${participantId}-${Date.now()}.${fileExt}`;
 	const filePath = `payments/${fileName}`;
 
-	// 1. Upload ke Storage (Bucket: 'gallery' - kita pakai bucket yang sama agar simple)
+	// 1. Kompresi gambar dulu
+	const compressedBlob = await compressImage(file);
+
+	// 2. Upload ke Storage
 	const { data: sData, error: sError } = await supabase.storage
 		.from('gallery')
-		.upload(filePath, file);
+		.upload(filePath, compressedBlob, {
+			contentType: 'image/jpeg'
+		});
 
 	if (sError) throw sError;
 
@@ -97,6 +102,42 @@ export async function uploadPaymentProof(participantId, file) {
 	return publicUrl;
 }
 
+/**
+ * Kompresi gambar di sisi klien sebelum diupload
+ * @param {File} file 
+ * @returns {Promise<Blob>}
+ */
+async function compressImage(file) {
+	return new Promise((resolve) => {
+		const reader = new FileReader();
+		reader.readAsDataURL(file);
+		reader.onload = (event) => {
+			const img = new Image();
+			img.src = event.target.result;
+			img.onload = () => {
+				const canvas = document.createElement('canvas');
+				const MAX_WIDTH = 800; // Optimal untuk bukti transfer
+				let width = img.width;
+				let height = img.height;
+
+				if (width > MAX_WIDTH) {
+					height *= MAX_WIDTH / width;
+					width = MAX_WIDTH;
+				}
+
+				canvas.width = width;
+				canvas.height = height;
+				const ctx = canvas.getContext('2d');
+				ctx.drawImage(img, 0, 0, width, height);
+
+				canvas.toBlob((blob) => {
+					resolve(blob);
+				}, 'image/jpeg', 0.7); // Kualitas 70% sudah sangat cukup
+			};
+		};
+	});
+}
+
 // ── CRUD Helpers ──────────────────────────────────────────────────
 
 export function getSession(id) {
@@ -105,6 +146,11 @@ export function getSession(id) {
 
 export function getParticipants(sessionId) {
 	return db.participants.filter((p) => p.session_id === sessionId);
+}
+
+export function getParticipantByTicket(ticketId) {
+	if (!ticketId) return null;
+	return db.participants.find((p) => p.ticket_id === ticketId.toUpperCase());
 }
 
 export async function addParticipant(sessionId, name, needsRacket) {

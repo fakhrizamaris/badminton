@@ -3,15 +3,16 @@
 	import {
 		getSession,
 		getParticipants,
+		getParticipantsSync,
 		addParticipant,
 		markPaid,
 		calcCourtShare,
 		calcRacketShare,
 		calcTotalCost,
+		calcPlayerCost,
 		isRSVPOpen,
 		db,
-		uploadPaymentProof,
-		markPaid
+		uploadPaymentProof
 	} from '$lib/data/store.svelte.js';
 	import {
 		ArrowLeft,
@@ -45,23 +46,49 @@
 	// QRIS modal state
 	let showQrisModal = $state(false);
 	let payingParticipantId = $state(null);
-	let payingNeedsRacket = $state(false);
-	let isUploadingProof = $state(false);
-	let proofSuccess = $state(false);
+	let isHomePage = $derived(currentPath === "/");
 	let myParticipantId = $state(null);
 
 	onMount(() => {
-		// Ambil ID pendaftaran dari memori browser jika ada
-		myParticipantId = localStorage.getItem(`rsvp_${page.params.id}`);
+		initDB();
+		// 1. Cek dari URL dulu (Paling kuat, misal dari link yang dibagikan)
+		const ticketParam = page.url.searchParams.get('ticket');
+		if (ticketParam) {
+			findAndClaimTicket(ticketParam);
+		} else {
+			// 2. Cek dari LocalStorage (HP yang sama)
+			myParticipantId = localStorage.getItem(`rsvp_${page.params.id}`);
+		}
 	});
 
+	let recoverTicketId = $state('');
+	let recoverError = $state('');
+
+	async function findAndClaimTicket(id) {
+		const p = sessionParticipants.find(p => p.ticket_id === id.toUpperCase() || p.id === id);
+		if (p) {
+			myParticipantId = p.id;
+			localStorage.setItem(`rsvp_${page.params.id}`, p.id);
+			recoverError = '';
+			recoverTicketId = '';
+			// Bersihkan URL tanpa reload
+			const newUrl = new URL(window.location.href);
+			newUrl.searchParams.delete('ticket');
+			window.history.replaceState({}, '', newUrl);
+		} else if (recoverTicketId) {
+			recoverError = 'Ticket ID not found. Please check again.';
+		}
+	}
+
 	let myRegistration = $derived(sessionParticipants.find(p => p.id === myParticipantId));
+	let showReceipt = $state(false);
 
 	let modalCost = $derived.by(() => {
 		if (!session) return 0;
 		if (payingParticipantId) {
 			const p = sessionParticipants.find((p) => p.id === payingParticipantId);
-			return calcPlayerCost(session, sessionParticipants, p?.needs_racket ?? false);
+			const base = calcPlayerCost(session, sessionParticipants, p?.needs_racket ?? false);
+			return base + (p?.unique_code || 0);
 		}
 		return costOwnRacket;
 	});
@@ -100,7 +127,6 @@
 			maximumFractionDigits: 0
 		}).format(amount);
 	}
-
 	async function handleJoin() {
 		const trimmed = playerName.trim();
 		if (!trimmed) {
@@ -119,6 +145,17 @@
 		if (newParticipant) {
 			myParticipantId = newParticipant.id;
 			localStorage.setItem(`rsvp_${page.params.id}`, newParticipant.id);
+			
+			// Tambahkan ke daftar kado tiket global
+			const allTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+			if (!allTickets.find(t => t.id === newParticipant.ticket_id)) {
+				allTickets.push({
+					id: newParticipant.ticket_id,
+					session: session?.title,
+					date: session?.date
+				});
+				localStorage.setItem('my_tickets', JSON.stringify(allTickets));
+			}
 		}
 		
 		playerName = '';
@@ -260,52 +297,61 @@
 		<!-- Personal Status Banner (LocalStorage Recognition) -->
 		{#if myRegistration}
 			<div class="mb-5 animate-scale-in">
-				<div class="bg-navy rounded-3xl p-4 shadow-lg shadow-navy/20 border border-white/10 relative overflow-hidden">
-					<!-- Animated Glow Background -->
-					<div class="absolute -top-12 -right-12 w-24 h-24 bg-white/10 blur-3xl rounded-full"></div>
+				<div class="bg-navy rounded-3xl p-5 shadow-xl shadow-navy/20 border border-white/10 relative overflow-hidden group">
+					<!-- Apple Identity Glow -->
+					<div class="absolute -top-10 -right-10 w-32 h-32 bg-white/10 blur-[40px] rounded-full group-hover:scale-125 transition-transform duration-700"></div>
 					
-					<div class="flex items-center justify-between mb-3 relative z-10">
+					<div class="flex items-center justify-between mb-4 relative z-10">
 						<div class="flex items-center gap-2">
-							<div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
-							<p class="text-[9px] font-bold text-white/50 uppercase tracking-[0.15em]">Your Registration</p>
+							<div class="px-2 py-0.5 rounded-md bg-white/10 border border-white/10 text-[9px] font-bold text-white/50 uppercase tracking-widest">
+								Pass ID: {myRegistration.id.slice(0, 8)}
+							</div>
 						</div>
-						<button 
-							onclick={sendWAConfirmation}
-							class="text-[9px] font-bold text-white bg-white/10 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-white/20 transition-all border border-white/5"
-						>
-							<Phone size={10} /> Send WA Receipt
-						</button>
+						{#if myRegistration.has_paid}
+							<a 
+								href="/ticket/{myRegistration.ticket_id}"
+								class="text-[9px] font-bold text-navy bg-white px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-white/90 transition-all shadow-lg active:scale-95"
+							>
+								<CheckCircle size={10} /> View Membership Pass
+							</a>
+						{/if}
 					</div>
 					
-					<div class="flex items-center justify-between relative z-10">
+					<div class="flex items-end justify-between relative z-10">
 						<div>
-							<h4 class="text-white text-lg font-bold leading-none tracking-tight">{myRegistration.name}</h4>
-							<p class="text-white/40 text-[10px] mt-1.5 flex items-center gap-1.5">
-								{#if myRegistration.needs_racket}
-									<Zap size={10} class="text-white/40" /> Renting Racket
-								{:else}
-									<Feather size={10} class="text-white/40" /> Own Racket
-								{/if}
-							</p>
+							<p class="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-1">Registered Player</p>
+							<h4 class="text-white text-xl font-bold leading-none tracking-tight">{myRegistration.name}</h4>
+							<div class="flex items-center gap-2 mt-2">
+								<span class="text-[10px] text-white/60 bg-white/5 px-2 py-0.5 rounded-md border border-white/5 font-mono">
+									Ticket ID: {myRegistration.ticket_id || '---'}
+								</span>
+							</div>
 						</div>
 						
 						<div class="text-right">
 							{#if myRegistration.has_paid}
-								<div class="inline-flex flex-col items-end">
-									<span class="text-success text-[11px] font-bold bg-success/15 px-3 py-1.5 rounded-xl border border-success/20 flex items-center gap-1">
-										<CheckCircle size={12} /> Verified & Paid
-									</span>
+								<div class="flex flex-col items-end gap-1">
+									<div class="w-8 h-8 rounded-full bg-success/20 flex items-center justify-center border border-success/30 text-success mb-1">
+										<Check size={18} strokeWidth={3} />
+									</div>
+									<p class="text-[10px] font-bold text-success uppercase tracking-widest">Verified</p>
 								</div>
 							{:else if myRegistration.payment_proof_url}
-								<span class="text-warning text-[11px] font-bold bg-warning/15 px-3 py-1.5 rounded-xl border border-warning/20 flex items-center gap-1">
-									<Clock size={12} /> Pending Approval
-								</span>
+								<div class="flex flex-col items-end gap-1">
+									<div class="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center border border-warning/30 text-warning mb-1">
+										<Clock size={18} />
+									</div>
+									<p class="text-[10px] font-bold text-warning uppercase tracking-widest text-center">In Review</p>
+								</div>
 							{:else}
 								<button 
 									onclick={() => openPayment(myRegistration.id, myRegistration.needs_racket)}
-									class="text-white text-[11px] font-bold bg-white/10 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/20 transition-all active:scale-95"
+									class="flex flex-col items-end gap-2 group/btn"
 								>
-									Pay Now
+									<span class="text-[10px] font-bold text-white/40 group-hover/btn:text-white/60 transition-colors">Transfer ID: Rp ...{myRegistration.unique_code}</span>
+									<div class="px-5 py-2.5 bg-white text-navy font-bold text-xs rounded-xl shadow-lg border border-white active:scale-95 transition-all">
+										Pay Fees
+									</div>
 								</button>
 							{/if}
 						</div>
@@ -521,6 +567,39 @@
 						Join Session
 					</button>
 				</form>
+
+				<!-- Recovery Link -->
+				<div class="mt-6 pt-5 border-t border-border/30">
+					{#if !recoverTicketId && !recoverError}
+						<button 
+							onclick={() => (recoverTicketId = ' ')} 
+							class="w-full text-center text-[10px] text-text-tertiary hover:text-navy transition-colors font-medium uppercase tracking-widest"
+						>
+							Already joined? Recover Access
+						</button>
+					{:else}
+						<div class="space-y-3 animate-fade-in">
+							<p class="text-[10px] font-bold text-text-secondary uppercase tracking-widest text-center">Enter your 6-digit Ticket ID</p>
+							<div class="flex gap-2">
+								<input 
+									type="text" 
+									bind:value={recoverTicketId}
+									placeholder="e.g. XJ29S1"
+									class="flex-1 px-4 py-2 bg-bg rounded-xl border border-border/50 text-sm font-mono text-center uppercase focus:ring-2 focus:ring-navy/20 focus:outline-none"
+								/>
+								<button 
+									onclick={() => findAndClaimTicket(recoverTicketId)}
+									class="px-4 py-2 bg-navy text-white text-xs font-bold rounded-xl active:scale-95 transition-all"
+								>
+									Find
+								</button>
+							</div>
+							{#if recoverError}
+								<p class="text-[10px] text-danger font-bold text-center">{recoverError}</p>
+							{/if}
+						</div>
+					{/if}
+				</div>
 			</div>
 		{/if}
 
@@ -665,6 +744,77 @@
 						class="w-full py-3.5 bg-navy text-white font-bold text-sm rounded-2xl shadow-lg shadow-navy/20 active:scale-95 transition-all"
 					>
 						Done
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Digital Pass / Receipt Backdrop -->
+	{#if showReceipt && myRegistration && myRegistration.has_paid}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-xl animate-fade-in flex items-center justify-center p-6"
+			onclick={() => (showReceipt = false)}
+		>
+			<div class="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl animate-scale-in flex flex-col items-stretch">
+				<!-- Top: Pass Header -->
+				<div class="bg-navy p-6 text-center relative overflow-hidden">
+					<div class="absolute -top-10 -right-10 w-24 h-24 bg-white/10 blur-2xl rounded-full"></div>
+					<p class="text-white/50 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">Official Member Pass</p>
+					<h2 class="text-white text-xl font-bold tracking-tight">Badminton IL Batam</h2>
+				</div>
+
+				<!-- Middle: Pass Info -->
+				<div class="p-8 flex flex-col items-center border-b-2 border-dashed border-border/50 relative">
+					<!-- Punch holes for effect -->
+					<div class="absolute -left-3 -bottom-3 w-6 h-6 bg-black rounded-full"></div>
+					<div class="absolute -right-3 -bottom-3 w-6 h-6 bg-black rounded-full"></div>
+
+					<div class="w-20 h-20 rounded-full bg-navy/5 flex items-center justify-center mb-4 border border-navy/10">
+						<span class="text-3xl font-black text-navy">{myRegistration.name.charAt(0).toUpperCase()}</span>
+					</div>
+
+					<h3 class="text-2xl font-black text-text-primary mb-1">{myRegistration.name}</h3>
+					<div class="px-4 py-1.5 bg-success text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-success/20 mb-8">
+						Verified & Paid
+					</div>
+
+					<div class="grid grid-cols-2 gap-x-12 gap-y-6 w-full text-center">
+						<div>
+							<p class="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Session</p>
+							<p class="text-xs font-bold text-text-primary leading-tight">{session.title}</p>
+						</div>
+						<div>
+							<p class="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Status</p>
+							<p class="text-xs font-bold text-text-primary">Player</p>
+						</div>
+						<div>
+							<p class="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Date</p>
+							<p class="text-xs font-bold text-text-primary">{formatDate(session.date).split(',')[0]}</p>
+						</div>
+						<div>
+							<p class="text-[9px] font-bold text-text-tertiary uppercase tracking-widest mb-1">Amount</p>
+							<p class="text-xs font-bold text-text-primary">{formatCurrency(calcPlayerCost(session, sessionParticipants, myRegistration.needs_racket) + myRegistration.unique_code)}</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Bottom: QR/Barcode vibe -->
+				<div class="p-8 flex flex-col items-center">
+					<div class="w-full h-12 flex gap-1 mb-3 opacity-30">
+						{#each Array(40) as _}
+							<div class="flex-1 bg-black rounded-full" style="height: {Math.random() * 100}%"></div>
+						{/each}
+					</div>
+					<p class="text-[9px] font-mono text-text-tertiary uppercase tracking-widest">#{myRegistration.id.slice(0, 18).toUpperCase()}</p>
+					
+					<button 
+						onclick={() => (showReceipt = false)}
+						class="mt-8 text-text-tertiary hover:text-navy transition-colors text-xs font-bold"
+					>
+						Tap anywhere to close
 					</button>
 				</div>
 			</div>
