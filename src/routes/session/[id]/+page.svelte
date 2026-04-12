@@ -7,10 +7,11 @@
 		markPaid,
 		calcCourtShare,
 		calcRacketShare,
-		calcPlayerCost,
 		calcTotalCost,
 		isRSVPOpen,
-		db
+		db,
+		uploadPaymentProof,
+		markPaid
 	} from '$lib/data/store.svelte.js';
 	import {
 		ArrowLeft,
@@ -24,7 +25,11 @@
 		CheckCircle,
 		Clock,
 		X,
-		Info
+		Info,
+		Feather,
+		Upload,
+		Image as ImageIcon,
+		Trash2
 	} from 'lucide-svelte';
 
 	// Reactive session data
@@ -41,6 +46,16 @@
 	let showQrisModal = $state(false);
 	let payingParticipantId = $state(null);
 	let payingNeedsRacket = $state(false);
+	let isUploadingProof = $state(false);
+	let proofSuccess = $state(false);
+	let myParticipantId = $state(null);
+
+	onMount(() => {
+		// Ambil ID pendaftaran dari memori browser jika ada
+		myParticipantId = localStorage.getItem(`rsvp_${page.params.id}`);
+	});
+
+	let myRegistration = $derived(sessionParticipants.find(p => p.id === myParticipantId));
 
 	let modalCost = $derived.by(() => {
 		if (!session) return 0;
@@ -100,12 +115,30 @@
 			return;
 		}
 
-		await addParticipant(page.params.id, trimmed, needsRacket);
+		const newParticipant = await addParticipant(page.params.id, trimmed, needsRacket);
+		if (newParticipant) {
+			myParticipantId = newParticipant.id;
+			localStorage.setItem(`rsvp_${page.params.id}`, newParticipant.id);
+		}
+		
 		playerName = '';
 		needsRacket = false;
 		formError = '';
 		justJoined = true;
-		setTimeout(() => (justJoined = false), 2500);
+		setTimeout(() => (justJoined = false), 5000);
+	}
+
+	function sendWAConfirmation() {
+		if (!myRegistration || !session) return;
+		
+		const status = myRegistration.has_paid ? 'SUDAH BAYAR' : 'MENUNGGU VERIFIKASI';
+		const text = `Halo Admin, saya *${myRegistration.name}* konfirmasi pendaftaran badminton:\n\n` +
+					 `📍 Sesi: ${session.title}\n` +
+					 `📅 Tanggal: ${formatDate(session.date)}\n` +
+					 `💰 Status: ${status}\n\n` +
+					 `Bukti bayar sudah saya upload di website. Mohon dicek ya!`;
+		
+		window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(text)}`, '_blank');
 	}
 
 	/**
@@ -117,6 +150,22 @@
 		payingParticipantId = participantId;
 		payingNeedsRacket = racketNeeded;
 		showQrisModal = true;
+		proofSuccess = false;
+	}
+
+	async function handleProofUpload(e) {
+		const file = e.target.files[0];
+		if (!file || !payingParticipantId) return;
+
+		isUploadingProof = true;
+		try {
+			await uploadPaymentProof(payingParticipantId, file);
+			proofSuccess = true;
+		} catch (err) {
+			console.error('Proof upload failed:', err);
+		} finally {
+			isUploadingProof = false;
+		}
 	}
 
 	async function confirmPayment() {
@@ -208,6 +257,63 @@
 			</div>
 		</div>
 
+		<!-- Personal Status Banner (LocalStorage Recognition) -->
+		{#if myRegistration}
+			<div class="mb-5 animate-scale-in">
+				<div class="bg-navy rounded-3xl p-4 shadow-lg shadow-navy/20 border border-white/10 relative overflow-hidden">
+					<!-- Animated Glow Background -->
+					<div class="absolute -top-12 -right-12 w-24 h-24 bg-white/10 blur-3xl rounded-full"></div>
+					
+					<div class="flex items-center justify-between mb-3 relative z-10">
+						<div class="flex items-center gap-2">
+							<div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
+							<p class="text-[9px] font-bold text-white/50 uppercase tracking-[0.15em]">Your Registration</p>
+						</div>
+						<button 
+							onclick={sendWAConfirmation}
+							class="text-[9px] font-bold text-white bg-white/10 px-3 py-1.5 rounded-full flex items-center gap-1.5 hover:bg-white/20 transition-all border border-white/5"
+						>
+							<Phone size={10} /> Send WA Receipt
+						</button>
+					</div>
+					
+					<div class="flex items-center justify-between relative z-10">
+						<div>
+							<h4 class="text-white text-lg font-bold leading-none tracking-tight">{myRegistration.name}</h4>
+							<p class="text-white/40 text-[10px] mt-1.5 flex items-center gap-1.5">
+								{#if myRegistration.needs_racket}
+									<Zap size={10} class="text-white/40" /> Renting Racket
+								{:else}
+									<Feather size={10} class="text-white/40" /> Own Racket
+								{/if}
+							</p>
+						</div>
+						
+						<div class="text-right">
+							{#if myRegistration.has_paid}
+								<div class="inline-flex flex-col items-end">
+									<span class="text-success text-[11px] font-bold bg-success/15 px-3 py-1.5 rounded-xl border border-success/20 flex items-center gap-1">
+										<CheckCircle size={12} /> Verified & Paid
+									</span>
+								</div>
+							{:else if myRegistration.payment_proof_url}
+								<span class="text-warning text-[11px] font-bold bg-warning/15 px-3 py-1.5 rounded-xl border border-warning/20 flex items-center gap-1">
+									<Clock size={12} /> Pending Approval
+								</span>
+							{:else}
+								<button 
+									onclick={() => openPayment(myRegistration.id, myRegistration.needs_racket)}
+									class="text-white text-[11px] font-bold bg-white/10 px-4 py-2 rounded-xl border border-white/10 hover:bg-white/20 transition-all active:scale-95"
+								>
+									Pay Now
+								</button>
+							{/if}
+						</div>
+					</div>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Price Card: Two-Tier Pricing -->
 		<div
 			class="rounded-3xl overflow-hidden mb-5 animate-fade-in-up {session.is_locked ? 'bg-navy shadow-lg shadow-navy/25' : 'bg-surface border border-border/50 shadow-sm'}"
@@ -225,8 +331,8 @@
 				<div class="grid grid-cols-2 gap-3 mb-4">
 					<!-- Own racket -->
 					<div class="rounded-2xl p-3 {session.is_locked ? 'bg-white/10' : 'bg-bg'}">
-						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} uppercase tracking-wider mb-1">
-							🏸 Own Racket
+						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1">
+							<Feather size={12} /> Own Racket
 						</p>
 						<p class="text-xl font-bold {session.is_locked ? 'text-white' : 'text-text-primary'} tracking-tight">
 							{formatCurrency(costOwnRacket)}
@@ -238,8 +344,8 @@
 
 					<!-- Renting racket -->
 					<div class="rounded-2xl p-3 {session.is_locked ? 'bg-white/10' : 'bg-bg'}">
-						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} uppercase tracking-wider mb-1">
-							🎾 Rent Racket
+						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1">
+							<Zap size={12} class={session.is_locked ? 'text-white/50' : 'text-navy'} /> Rent Racket
 						</p>
 						<p class="text-xl font-bold {session.is_locked ? 'text-white' : 'text-navy'} tracking-tight">
 							{formatCurrency(costRentRacket)}
@@ -262,7 +368,7 @@
 					</div>
 					<div class="flex justify-between text-xs">
 						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
-							Court share ÷ {sessionParticipants.length} player{sessionParticipants.length !== 1 ? 's' : ''}
+							Court share ÷ {Math.max(1, sessionParticipants.length)} player{sessionParticipants.length !== 1 ? 's' : ''}
 						</span>
 						<span class="{session.is_locked ? 'text-white/60' : 'text-text-secondary'} font-medium">
 							{formatCurrency(courtShare)}
@@ -450,9 +556,9 @@
 								<p class="text-sm font-medium text-text-primary truncate">{participant?.name || 'Unknown'}</p>
 								<div class="flex items-center gap-2 mt-0.5">
 									{#if participant.needs_racket}
-										<span class="text-[10px] text-navy/60">🎾 Rent racket</span>
+										<span class="text-[10px] text-navy/60 flex items-center gap-1"><Zap size={10} /> Rent racket</span>
 									{:else}
-										<span class="text-[10px] text-text-tertiary">🏸 Own racket</span>
+										<span class="text-[10px] text-text-tertiary flex items-center gap-1"><Feather size={10} /> Own racket</span>
 									{/if}
 									<span class="text-[10px] text-text-tertiary font-medium">· {formatCurrency(playerCost)}</span>
 								</div>
@@ -522,28 +628,44 @@
 					</div>
 
 					<div class="bg-bg rounded-2xl border border-border/50 p-6 text-center mb-6">
-						<!-- QRIS placeholder — replace src/lib/assets/qris.png with your actual QRIS image -->
-						<div class="w-48 h-48 mx-auto bg-white rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center">
-							<QrCode size={48} class="text-text-tertiary mb-2" />
-							<p class="text-xs text-text-tertiary font-medium">QRIS Code</p>
-							<p class="text-[10px] text-text-tertiary mt-1">Add qris.png to assets</p>
+						<!-- QRIS Placeholder -->
+						<div class="aspect-square bg-white rounded-2xl flex flex-col items-center justify-center p-8 border border-border/50 mb-4 shadow-inner">
+							<QrCode size={48} class="text-text-tertiary mb-3 opacity-20" />
+							<p class="text-[10px] text-text-tertiary text-center uppercase tracking-widest font-bold">
+								QRIS CODE PLACEHOLDER
+							</p>
+						</div>
+
+						<!-- Upload Proof Section -->
+						<div class="pt-4 border-t border-border/50">
+							<p class="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-3">Upload Transfer Proof</p>
+							
+							{#if proofSuccess}
+								<div class="p-3 bg-success/10 rounded-xl flex items-center justify-center gap-2 animate-scale-in">
+									<CheckCircle size={16} class="text-success" />
+									<p class="text-[11px] font-bold text-success capitalize">Proof uploaded! Waiting for admin.</p>
+								</div>
+							{:else}
+								<label class="relative flex items-center justify-center gap-2 w-full p-3 bg-surface border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-navy/30 transition-colors group">
+									<input type="file" accept="image/*" class="hidden" onchange={handleProofUpload} disabled={isUploadingProof} />
+									{#if isUploadingProof}
+										<div class="w-4 h-4 border-2 border-navy/30 border-t-navy rounded-full animate-spin"></div>
+										<span class="text-xs font-semibold text-text-secondary">Uploading...</span>
+									{:else}
+										<Upload size={16} class="text-text-tertiary group-hover:text-navy transition-colors" />
+										<span class="text-xs font-semibold text-text-secondary">Choose Screenshot</span>
+									{/if}
+								</label>
+							{/if}
 						</div>
 					</div>
 
-					<!-- Confirm Payment Button -->
 					<button
-						onclick={confirmPayment}
-						class="w-full py-4 bg-navy text-white font-semibold text-sm rounded-2xl shadow-sm shadow-navy/20 hover:shadow-md transition-all active:scale-[0.98]"
+						onclick={closeModal}
+						class="w-full py-3.5 bg-navy text-white font-bold text-sm rounded-2xl shadow-lg shadow-navy/20 active:scale-95 transition-all"
 					>
-						<span class="flex items-center justify-center gap-2">
-							<CheckCircle size={18} />
-							I Have Paid
-						</span>
+						Done
 					</button>
-
-					<p class="text-center text-[11px] text-text-tertiary mt-3">
-						Admin will verify your payment manually
-					</p>
 				</div>
 			</div>
 		</div>

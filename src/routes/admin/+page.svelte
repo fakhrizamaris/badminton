@@ -466,9 +466,21 @@
 													</span>
 												</div>
 
-												<!-- Name -->
+												<!-- Name & Proof -->
 												<div class="flex-1 min-w-0">
-													<p class="text-sm font-medium text-text-primary truncate">{participant.name}</p>
+													<div class="flex items-center gap-2">
+														<p class="text-sm font-medium text-text-primary truncate">{participant.name}</p>
+														{#if participant.payment_proof_url}
+															<a 
+																href={participant.payment_proof_url} 
+																target="_blank" 
+																class="flex-shrink-0 w-6 h-6 rounded-md overflow-hidden border border-border/50 hover:ring-2 hover:ring-navy/20 transition-all shadow-sm"
+																title="View Payment Proof"
+															>
+																<img src={participant.payment_proof_url} alt="Proof" class="w-full h-full object-cover" />
+															</a>
+														{/if}
+													</div>
 													<div class="flex items-center gap-2 mt-0.5">
 														{#if participant.needs_racket}
 															<span class="text-[10px] text-navy/60">🎾 Rent</span>

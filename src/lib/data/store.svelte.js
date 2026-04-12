@@ -65,16 +65,36 @@ export async function uploadGalleryImages(files) {
 	return uploadedItems;
 }
 
-export async function deleteGalleryImage(id, url) {
-	// 1. Hapus dari DB
-	const { error: dbError } = await supabase.from('gallery').delete().eq('id', id);
-	if (!dbError) {
-		// 2. Hapus dari State
-		db.gallery = db.gallery.filter(item => item.id !== id);
-		
-		// 3. (Opsional) Hapus dari Storage jika perlu
-		// Kita butuh path filenya, biasanya bisa diekstrak dari URL
-	}
+export async function uploadPaymentProof(participantId, file) {
+	const fileExt = file.name.split('.').pop();
+	const fileName = `proof-${participantId}-${Date.now()}.${fileExt}`;
+	const filePath = `payments/${fileName}`;
+
+	// 1. Upload ke Storage (Bucket: 'gallery' - kita pakai bucket yang sama agar simple)
+	const { data: sData, error: sError } = await supabase.storage
+		.from('gallery')
+		.upload(filePath, file);
+
+	if (sError) throw sError;
+
+	// 2. Ambil URL
+	const { data: { publicUrl } } = supabase.storage
+		.from('gallery')
+		.getPublicUrl(filePath);
+
+	// 3. Update Participant table
+	const { error: dbError } = await supabase
+		.from('participants')
+		.update({ payment_proof_url: publicUrl })
+		.eq('id', participantId);
+
+	if (dbError) throw dbError;
+
+	// 4. Update Local State
+	const p = db.participants.find(p => p.id === participantId);
+	if (p) p.payment_proof_url = publicUrl;
+	
+	return publicUrl;
 }
 
 // ── CRUD Helpers ──────────────────────────────────────────────────
