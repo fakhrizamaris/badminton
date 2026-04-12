@@ -38,7 +38,8 @@ export async function addParticipant(sessionId, name, needsRacket) {
 		.insert([{ session_id: sessionId, name, needs_racket: needsRacket, has_paid: false }])
 		.select();
 	if (data && data[0]) {
-		db.participants.push(data[0]);
+		// Menggunakan reassignment agar reaktivitas Svelte 5 terpicu dengan pasti
+		db.participants = [...db.participants, data[0]];
 		return data[0];
 	}
 	if (error) console.error('Add participant error:', error);
@@ -48,8 +49,7 @@ export async function addParticipant(sessionId, name, needsRacket) {
 export async function removeParticipant(participantId) {
 	const { error } = await supabase.from('participants').delete().eq('id', participantId);
 	if (!error) {
-		const idx = db.participants.findIndex((p) => p.id === participantId);
-		if (idx !== -1) db.participants.splice(idx, 1);
+		db.participants = db.participants.filter((p) => p.id !== participantId);
 	}
 }
 
@@ -96,7 +96,7 @@ export async function createSession(title, date, time, subtitle, courtCount, rac
 		.select();
 		
 	if (data && data[0]) {
-		db.sessions.unshift(data[0]); // Add to top since it usually sorts by date desc
+		db.sessions = [data[0], ...db.sessions];
 		return data[0];
 	}
 	if (error) console.error('Create session error:', error);

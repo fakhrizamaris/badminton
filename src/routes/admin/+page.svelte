@@ -50,7 +50,14 @@
 	}
 
 	function saveMapsUrl() {
-		appConfig.maps_embed_url = mapsUrlInput;
+		// Jika user paste seluruh tag <iframe>, kita ambil bagian src-nya saja
+		const match = mapsUrlInput.match(/src="([^"]+)"/);
+		if (match && match[1]) {
+			appConfig.maps_embed_url = match[1];
+		} else {
+			// Jika user paste link-nya saja
+			appConfig.maps_embed_url = mapsUrlInput;
+		}
 		showMapsConfig = false;
 	}
 
