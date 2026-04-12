@@ -1,0 +1,550 @@
+<script>
+	import { page } from '$app/state';
+	import {
+		getSession,
+		getParticipants,
+		addParticipant,
+		markPaid,
+		calcCourtShare,
+		calcPlayerCost,
+		calcTotalCost,
+		isRSVPOpen,
+		db
+	} from '$lib/data/store.svelte.js';
+	import {
+		ArrowLeft,
+		Calendar,
+		Users,
+		Zap,
+		Lock,
+		CircleDollarSign,
+		QrCode,
+		Check,
+		CheckCircle,
+		Clock,
+		X,
+		Info
+	} from 'lucide-svelte';
+
+	// Reactive session data
+	let session = $derived(getSession(page.params.id));
+	let sessionParticipants = $derived(getParticipants(page.params.id));
+
+	// RSVP form state
+	let playerName = $state('');
+	let needsRacket = $state(false);
+	let formError = $state('');
+	let justJoined = $state(false);
+
+	// QRIS modal state
+	let showQrisModal = $state(false);
+	let payingParticipantId = $state(null);
+	let payingNeedsRacket = $state(false);
+
+	let modalCost = $derived.by(() => {
+		if (!session) return 0;
+		if (payingParticipantId) {
+			const p = sessionParticipants.find((p) => p.id === payingParticipantId);
+			return calcPlayerCost(session, sessionParticipants, p?.needs_racket ?? false);
+		}
+		return costOwnRacket;
+	});
+
+	// Derived pricing
+	let courtShare = $derived(calcCourtShare(session, sessionParticipants));
+	let racketShare = $derived(calcRacketShare(session, sessionParticipants));
+	let costOwnRacket = $derived(calcPlayerCost(session, sessionParticipants, false));
+	let costRentRacket = $derived(calcPlayerCost(session, sessionParticipants, true));
+	let totalCost = $derived(calcTotalCost(session));
+	let rentersCount = $derived(sessionParticipants.filter((p) => p.needs_racket).length);
+
+	/**
+	 * Format a date string to a readable format
+	 * @param {string} dateStr
+	 */
+	function formatDate(dateStr) {
+		const date = new Date(dateStr + 'T00:00:00');
+		return date.toLocaleDateString('en-US', {
+			weekday: 'long',
+			day: 'numeric',
+			month: 'long',
+			year: 'numeric'
+		});
+	}
+
+	/**
+	 * Format currency in IDR
+	 * @param {number} amount
+	 */
+	function formatCurrency(amount) {
+		return new Intl.NumberFormat('id-ID', {
+			style: 'currency',
+			currency: 'IDR',
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0
+		}).format(amount);
+	}
+
+	async function handleJoin() {
+		const trimmed = playerName.trim();
+		if (!trimmed) {
+			formError = 'Please enter your name';
+			return;
+		}
+		const duplicate = sessionParticipants.find(
+			(p) => p.name.toLowerCase() === trimmed.toLowerCase()
+		);
+		if (duplicate) {
+			formError = 'This name is already registered';
+			return;
+		}
+
+		await addParticipant(page.params.id, trimmed, needsRacket);
+		playerName = '';
+		needsRacket = false;
+		formError = '';
+		justJoined = true;
+		setTimeout(() => (justJoined = false), 2500);
+	}
+
+	/**
+	 * Open QRIS payment modal
+	 * @param {string|null} participantId
+	 * @param {boolean} racketNeeded
+	 */
+	function openPayment(participantId, racketNeeded = false) {
+		payingParticipantId = participantId;
+		payingNeedsRacket = racketNeeded;
+		showQrisModal = true;
+	}
+
+	async function confirmPayment() {
+		if (payingParticipantId) {
+			await markPaid(payingParticipantId);
+		}
+		showQrisModal = false;
+		payingParticipantId = null;
+	}
+
+	function closeModal() {
+		showQrisModal = false;
+		payingParticipantId = null;
+	}
+</script>
+
+<svelte:head>
+	<title>{session ? session.title : 'Session'} — Badminton Split-Bill</title>
+</svelte:head>
+
+{#if !db.isReady}
+	<div class="max-w-4xl mx-auto px-5 pt-32 text-center animate-pulse">
+		<div class="w-12 h-12 border-4 border-navy border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+		<p class="text-text-secondary text-sm font-medium">Loading session data...</p>
+	</div>
+{:else if !session}
+	<div class="max-w-4xl mx-auto px-5 pt-20 text-center">
+		<p class="text-text-secondary text-lg">Session not found.</p>
+		<a href="/" class="inline-block mt-4 text-navy font-semibold text-sm">← Back to Home</a>
+	</div>
+{:else}
+	<div class="max-w-4xl mx-auto px-5">
+
+		<!-- Header -->
+		<header class="pt-6 pb-4 flex items-center gap-3 animate-fade-in">
+			<a
+				href="/"
+				class="w-10 h-10 rounded-xl bg-surface border border-border/50 flex items-center justify-center shadow-sm hover:shadow-md transition-all active:scale-95"
+			>
+				<ArrowLeft size={18} class="text-text-primary" />
+			</a>
+			<div class="flex-1 min-w-0">
+				<h1 class="text-lg font-bold text-text-primary truncate">{session.title}</h1>
+				<p class="text-xs text-text-secondary">{formatDate(session.date)} · {session.time}</p>
+				
+				<!-- RSVP Deadline Status -->
+				{#if !session.is_locked}
+					<div class="mt-1.5 flex items-center gap-2">
+						{#if isRSVPOpen(session)}
+							<div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
+							<p class="text-[10px] font-bold text-success uppercase tracking-widest">RSVP Open (H-1)</p>
+						{:else}
+							<div class="w-1.5 h-1.5 rounded-full bg-danger"></div>
+							<p class="text-[10px] font-bold text-danger uppercase tracking-widest">Deadline Passed</p>
+						{/if}
+					</div>
+				{/if}
+			</div>
+			{#if session.is_locked}
+				<span class="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-warning/10 text-warning text-xs font-semibold">
+					<Lock size={12} />
+					Locked
+				</span>
+			{/if}
+		</header>
+
+		<!-- Session Info Cards -->
+		<div class="grid grid-cols-3 gap-3 mb-5 animate-fade-in-up" style="animation-delay: 80ms">
+			<div class="bg-surface rounded-2xl border border-border/50 p-3 text-center shadow-sm">
+				<div class="w-8 h-8 rounded-xl bg-navy/5 flex items-center justify-center mx-auto mb-2">
+					<Calendar size={16} class="text-navy" />
+				</div>
+				<p class="text-lg font-bold text-text-primary">{session.court_count}</p>
+				<p class="text-[10px] text-text-tertiary font-medium">Courts</p>
+			</div>
+			<div class="bg-surface rounded-2xl border border-border/50 p-3 text-center shadow-sm">
+				<div class="w-8 h-8 rounded-xl bg-navy/5 flex items-center justify-center mx-auto mb-2">
+					<Zap size={16} class="text-navy" />
+				</div>
+				<p class="text-lg font-bold text-text-primary">{session.racket_count}</p>
+				<p class="text-[10px] text-text-tertiary font-medium">Rackets</p>
+			</div>
+			<div class="bg-surface rounded-2xl border border-border/50 p-3 text-center shadow-sm">
+				<div class="w-8 h-8 rounded-xl bg-navy/5 flex items-center justify-center mx-auto mb-2">
+					<Users size={16} class="text-navy" />
+				</div>
+				<p class="text-lg font-bold text-text-primary">{sessionParticipants.length}</p>
+				<p class="text-[10px] text-text-tertiary font-medium">Players</p>
+			</div>
+		</div>
+
+		<!-- Price Card: Two-Tier Pricing -->
+		<div
+			class="rounded-3xl overflow-hidden mb-5 animate-fade-in-up {session.is_locked ? 'bg-navy shadow-lg shadow-navy/25' : 'bg-surface border border-border/50 shadow-sm'}"
+			style="animation-delay: 160ms"
+		>
+			<div class="p-5">
+				<div class="flex items-center gap-2 mb-4">
+					<CircleDollarSign size={16} class={session.is_locked ? 'text-white/60' : 'text-navy'} />
+					<p class="text-xs font-semibold {session.is_locked ? 'text-white/60' : 'text-text-secondary'} uppercase tracking-wider">
+						{session.is_locked ? 'Final Locked Bill' : 'Estimated Price'}
+					</p>
+				</div>
+
+				<!-- Two price tiers -->
+				<div class="grid grid-cols-2 gap-3 mb-4">
+					<!-- Own racket -->
+					<div class="rounded-2xl p-3 {session.is_locked ? 'bg-white/10' : 'bg-bg'}">
+						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} uppercase tracking-wider mb-1">
+							🏸 Own Racket
+						</p>
+						<p class="text-xl font-bold {session.is_locked ? 'text-white' : 'text-text-primary'} tracking-tight">
+							{formatCurrency(costOwnRacket)}
+						</p>
+						<p class="text-[10px] {session.is_locked ? 'text-white/40' : 'text-text-tertiary'} mt-0.5">
+							per person
+						</p>
+					</div>
+
+					<!-- Renting racket -->
+					<div class="rounded-2xl p-3 {session.is_locked ? 'bg-white/10' : 'bg-bg'}">
+						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} uppercase tracking-wider mb-1">
+							🎾 Rent Racket
+						</p>
+						<p class="text-xl font-bold {session.is_locked ? 'text-white' : 'text-navy'} tracking-tight">
+							{formatCurrency(costRentRacket)}
+						</p>
+						<p class="text-[10px] {session.is_locked ? 'text-white/40' : 'text-text-tertiary'} mt-0.5">
+							per person
+						</p>
+					</div>
+				</div>
+
+				<!-- Breakdown -->
+				<div class="pt-3 border-t {session.is_locked ? 'border-white/10' : 'border-border/50'} space-y-1.5">
+					<div class="flex justify-between text-xs">
+						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
+							{session.court_count} court{session.court_count > 1 ? 's' : ''} × Rp 77.000
+						</span>
+						<span class={session.is_locked ? 'text-white/60' : 'text-text-secondary'}>
+							{formatCurrency(session.court_count * 77000)}
+						</span>
+					</div>
+					<div class="flex justify-between text-xs">
+						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
+							Court share ÷ {sessionParticipants.length} player{sessionParticipants.length !== 1 ? 's' : ''}
+						</span>
+						<span class="{session.is_locked ? 'text-white/60' : 'text-text-secondary'} font-medium">
+							{formatCurrency(courtShare)}
+						</span>
+					</div>
+					<div class="flex justify-between text-xs">
+						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
+							{session.racket_count} racket{session.racket_count > 1 ? 's' : ''} × Rp 20.000
+						</span>
+						<span class={session.is_locked ? 'text-white/60' : 'text-text-secondary'}>
+							{formatCurrency(session.racket_count * 20000)}
+						</span>
+					</div>
+					{#if rentersCount > 0}
+						<div class="flex justify-between text-xs">
+							<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
+								Racket share ÷ {rentersCount} renter{rentersCount !== 1 ? 's' : ''}
+							</span>
+							<span class="{session.is_locked ? 'text-white/60' : 'text-text-secondary'} font-medium">
+								+{formatCurrency(racketShare)}
+							</span>
+						</div>
+					{/if}
+					<div class="flex justify-between text-xs font-semibold pt-1.5 border-t {session.is_locked ? 'border-white/10' : 'border-border/30'}">
+						<span class={session.is_locked ? 'text-white/50' : 'text-text-tertiary'}>
+							Total session cost
+						</span>
+						<span class={session.is_locked ? 'text-white/80' : 'text-text-primary'}>
+							{formatCurrency(totalCost)}
+						</span>
+					</div>
+				</div>
+
+				<!-- Info note -->
+				{#if !session.is_locked}
+					<div class="flex flex-col gap-2 mt-3 p-3 rounded-xl bg-navy/5">
+						<div class="flex items-start gap-2">
+							<Info size={14} class="text-navy flex-shrink-0 mt-0.5" />
+							<p class="text-[11px] text-text-secondary leading-relaxed">
+								Semakin banyak peserta yang ikut, biaya per orang akan <strong>semakin murah</strong>!
+							</p>
+						</div>
+						<div class="flex items-start gap-2 pt-2 border-t border-navy/10">
+							<Users size={14} class="text-navy flex-shrink-0 mt-0.5" />
+							<p class="text-[11px] text-text-secondary leading-relaxed">
+								Biaya lapangan dibagi rata ke <strong>semua peserta</strong>. Biaya sewa raket hanya dibagi ke <strong>penyewa raket</strong>.
+							</p>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			{#if session.is_locked}
+				<div class="px-5 pb-5">
+					<button
+						onclick={() => openPayment(null, false)}
+						class="w-full py-3.5 px-6 bg-white text-navy font-semibold text-sm rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+					>
+						<span class="flex items-center justify-center gap-2">
+							<QrCode size={18} />
+							Pay via QRIS
+						</span>
+					</button>
+				</div>
+			{/if}
+		</div>
+
+		<!-- RSVP Form (only if not locked) -->
+		{#if !session.is_locked}
+			<div class="bg-surface rounded-3xl border border-border/50 shadow-sm p-5 mb-5 animate-fade-in-up" style="animation-delay: 240ms">
+				<div class="flex items-center justify-between mb-4">
+					<h3 class="text-sm font-bold text-text-primary">Join this Session</h3>
+					<span class="px-2 py-0.5 rounded-full bg-warning/10 text-warning text-[10px] font-bold">
+						CONFIRM FIRST
+					</span>
+				</div>
+
+				<p class="text-[11px] text-text-tertiary mb-4 leading-relaxed">
+					Harap konfirmasi ke Admin/Grup sebelum RSVP agar jumlah sewa lapangan bisa disesuaikan dan tidak berlebih.
+				</p>
+
+				<!-- Success Toast -->
+				{#if justJoined}
+					<div class="mb-4 p-3 rounded-2xl bg-success/10 border border-success/20 flex items-center gap-2 animate-scale-in">
+						<CheckCircle size={16} class="text-success" />
+						<span class="text-sm text-success font-medium">You've joined! 🎉</span>
+					</div>
+				{/if}
+
+				<form onsubmit={(e) => { e.preventDefault(); handleJoin(); }} class="space-y-4">
+					<!-- Name Input -->
+					<div>
+						<label for="player-name" class="block text-xs font-medium text-text-secondary mb-1.5">
+							Your Name
+						</label>
+						<input
+							id="player-name"
+							type="text"
+							bind:value={playerName}
+							placeholder="Enter your name"
+							class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
+						/>
+					</div>
+
+					<!-- Racket Toggle -->
+					<div class="flex flex-col gap-2 p-3 bg-bg rounded-2xl">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="text-sm font-medium text-text-primary">Need a racket?</p>
+								<p class="text-xs text-text-tertiary mt-0.5">Patungan sewa Rp 20rb/raket</p>
+							</div>
+							<button
+								type="button"
+								role="switch"
+								aria-label="Toggle if you need a racket"
+								aria-checked={needsRacket}
+								onclick={() => (needsRacket = !needsRacket)}
+								class="relative w-12 h-7 rounded-full transition-colors duration-200 {needsRacket ? 'bg-navy' : 'bg-text-tertiary/30'}"
+							>
+								<span
+									class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-transform duration-200 {needsRacket ? 'translate-x-5' : 'translate-x-0'}"
+								></span>
+							</button>
+						</div>
+						<div class="pt-2 border-t border-border/50">
+							<p class="text-[10px] text-text-tertiary leading-relaxed italic">
+								* Maksimal 20 raket tersedia (tergantung stok GOR). 1 raket bisa digunakan bergantian untuk 2-4 orang agar lebih hemat.
+							</p>
+						</div>
+					</div>
+
+					<!-- Cost preview -->
+					<div class="p-3 rounded-2xl bg-navy/5 text-center">
+						<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-medium">Your estimated cost</p>
+						<p class="text-lg font-bold text-navy mt-0.5">
+							{formatCurrency(calcPlayerCost(session, sessionParticipants, needsRacket))}
+						</p>
+					</div>
+
+					<!-- Error message -->
+					{#if formError}
+						<p class="text-xs text-danger font-medium animate-scale-in">{formError}</p>
+					{/if}
+
+					<!-- Submit Button -->
+					<button
+						type="submit"
+						class="w-full py-3.5 bg-navy text-white font-semibold text-sm rounded-2xl shadow-sm shadow-navy/20 hover:shadow-md hover:shadow-navy/30 transition-all active:scale-[0.98]"
+					>
+						Join Session
+					</button>
+				</form>
+			</div>
+		{/if}
+
+		<!-- Participants List -->
+		<section class="pb-8 animate-fade-in-up" style="animation-delay: 320ms">
+			<h3 class="text-sm font-bold text-text-primary mb-3 flex items-center gap-2">
+				<Users size={14} class="text-navy" />
+				Players ({sessionParticipants.length})
+			</h3>
+
+			{#if sessionParticipants.length === 0}
+				<div class="bg-surface rounded-3xl border border-border/50 p-8 text-center shadow-sm">
+					<div class="w-12 h-12 rounded-2xl bg-bg flex items-center justify-center mx-auto mb-3">
+						<Users size={20} class="text-text-tertiary" />
+					</div>
+					<p class="text-sm text-text-secondary">No players yet</p>
+					<p class="text-xs text-text-tertiary mt-1">Be the first to join!</p>
+				</div>
+			{:else}
+				<div class="bg-surface rounded-3xl border border-border/50 shadow-sm overflow-hidden divide-y divide-border/50">
+					{#each sessionParticipants as participant (participant.id)}
+						{@const playerCost = calcPlayerCost(session, sessionParticipants, participant.needs_racket)}
+						<div class="flex items-center gap-3 px-4 py-3.5">
+							<!-- Avatar Circle -->
+							<div class="w-9 h-9 rounded-full {participant.needs_racket ? 'bg-navy/10' : 'bg-navy/5'} flex items-center justify-center flex-shrink-0">
+								<span class="text-xs font-bold text-navy">
+									{participant?.name?.charAt(0)?.toUpperCase() || '?'}
+								</span>
+							</div>
+
+							<!-- Name & Info -->
+							<div class="flex-1 min-w-0">
+								<p class="text-sm font-medium text-text-primary truncate">{participant?.name || 'Unknown'}</p>
+								<div class="flex items-center gap-2 mt-0.5">
+									{#if participant.needs_racket}
+										<span class="text-[10px] text-navy/60">🎾 Rent racket</span>
+									{:else}
+										<span class="text-[10px] text-text-tertiary">🏸 Own racket</span>
+									{/if}
+									<span class="text-[10px] text-text-tertiary font-medium">· {formatCurrency(playerCost)}</span>
+								</div>
+							</div>
+
+							<!-- Payment Status -->
+							{#if session.is_locked}
+								{#if participant.has_paid}
+									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-[11px] font-semibold">
+										<Check size={12} />
+										Paid
+									</span>
+								{:else}
+									<button
+										onclick={() => openPayment(participant.id, participant.needs_racket)}
+										class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-danger/10 text-danger text-[11px] font-semibold hover:bg-danger/20 transition-colors active:scale-95"
+									>
+										<Clock size={12} />
+										Unpaid
+									</button>
+								{/if}
+							{:else}
+								<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-navy/5 text-navy text-[11px] font-semibold">
+									<Check size={12} />
+									Joined
+								</span>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
+	</div>
+
+	<!-- QRIS Payment Modal -->
+	{#if showQrisModal}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm animate-fade-in"
+			onclick={closeModal}
+		></div>
+
+		<div class="fixed inset-x-0 bottom-0 z-50 animate-slide-up">
+			<div class="max-w-md mx-auto bg-surface rounded-t-3xl shadow-2xl">
+				<!-- Handle bar -->
+				<div class="flex justify-center pt-3 pb-2">
+					<div class="w-10 h-1 rounded-full bg-text-tertiary/30"></div>
+				</div>
+
+				<div class="px-6 pb-8 pt-2">
+					<!-- Close button -->
+					<div class="flex items-center justify-between mb-5">
+						<h3 class="text-lg font-bold text-text-primary">Pay via QRIS</h3>
+						<button
+							onclick={closeModal}
+							class="w-8 h-8 rounded-full bg-bg flex items-center justify-center hover:bg-border/50 transition-colors"
+						>
+							<X size={16} class="text-text-secondary" />
+						</button>
+					</div>
+
+					<!-- Amount -->
+					<div class="text-center mb-6">
+						<p class="text-xs text-text-secondary uppercase tracking-wider font-medium mb-1">Amount Due</p>
+						<p class="text-3xl font-bold text-text-primary">{formatCurrency(modalCost)}</p>
+					</div>
+
+					<div class="bg-bg rounded-2xl border border-border/50 p-6 text-center mb-6">
+						<!-- QRIS placeholder — replace src/lib/assets/qris.png with your actual QRIS image -->
+						<div class="w-48 h-48 mx-auto bg-white rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center">
+							<QrCode size={48} class="text-text-tertiary mb-2" />
+							<p class="text-xs text-text-tertiary font-medium">QRIS Code</p>
+							<p class="text-[10px] text-text-tertiary mt-1">Add qris.png to assets</p>
+						</div>
+					</div>
+
+					<!-- Confirm Payment Button -->
+					<button
+						onclick={confirmPayment}
+						class="w-full py-4 bg-navy text-white font-semibold text-sm rounded-2xl shadow-sm shadow-navy/20 hover:shadow-md transition-all active:scale-[0.98]"
+					>
+						<span class="flex items-center justify-center gap-2">
+							<CheckCircle size={18} />
+							I Have Paid
+						</span>
+					</button>
+
+					<p class="text-center text-[11px] text-text-tertiary mt-3">
+						Admin will verify your payment manually
+					</p>
+				</div>
+			</div>
+		</div>
+	{/if}
+{/if}
