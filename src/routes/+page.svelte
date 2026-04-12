@@ -59,6 +59,11 @@
 		}
 	];
 
+	// Menggabungkan foto statis dan foto hasil upload dynamic
+	let combinedGallery = $derived([
+		...db.gallery.map(img => ({ url: img.url, date: 'Community Moment' })),
+		...galleryData.flatMap(group => group.images.map(src => ({ url: src, date: group.date })))
+	]);
 </script>
 
 <svelte:head>
@@ -270,20 +275,18 @@
 		<!-- Right: Masonry Grid -->
 		<div class="w-full lg:w-2/3 bg-bg p-4 sm:p-6 lg:p-8 min-h-screen">
 			<div class="columns-2 md:columns-3 gap-4 lg:gap-6 space-y-4 lg:space-y-6">
-				{#each galleryData as group}
-					{#each group.images as img, i}
-						<div class="break-inside-avoid relative group rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl transition-all duration-500">
-							<img 
-								src={img} 
-								alt="Session {group.date} - Photo {i+1}"
-								class="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-105"
-								loading="lazy"
-							/>
-							<div class="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-								<span class="text-white text-xs sm:text-sm font-semibold">{group.date}</span>
-							</div>
+				{#each combinedGallery as img, i}
+					<div class="break-inside-avoid relative group rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl transition-all duration-500 animate-scale-in">
+						<img 
+							src={img.url} 
+							alt="Gallery moment {i}"
+							class="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-105"
+							loading="lazy"
+						/>
+						<div class="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+							<span class="text-white text-xs sm:text-sm font-semibold">{img.date}</span>
 						</div>
-					{/each}
+					</div>
 				{/each}
 			</div>
 		</div>

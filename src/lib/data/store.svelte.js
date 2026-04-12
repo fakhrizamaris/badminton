@@ -9,6 +9,7 @@ export const appConfig = $state({
 export const db = $state({
 	sessions: [],
 	participants: [],
+	gallery: [], // Daftar foto dari database
 	isReady: false
 });
 
@@ -18,8 +19,62 @@ export async function initDB() {
 
 	const { data: pData } = await supabase.from('participants').select('*');
 	if (pData) db.participants = pData;
+
+	const { data: gData } = await supabase.from('gallery').select('*').order('created_at', { ascending: false });
+	if (gData) db.gallery = gData;
 	
 	db.isReady = true;
+}
+
+export async function uploadGalleryImages(files) {
+	const uploadedItems = [];
+	
+	for (const file of files) {
+		const fileExt = file.name.split('.').pop();
+		const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+		const filePath = `photos/${fileName}`;
+
+		// 1. Upload ke Supabase Storage (Bucket: 'gallery')
+		const { data: sData, error: sError } = await supabase.storage
+			.from('gallery')
+			.upload(filePath, file);
+
+		if (sError) {
+			console.error('Upload error:', sError);
+			continue;
+		}
+
+		// 2. Ambil Public URL
+		const { data: { publicUrl } } = supabase.storage
+			.from('gallery')
+			.getPublicUrl(filePath);
+
+		// 3. Simpan ke Tabel 'gallery'
+		const { data: dbData, error: dbError } = await supabase
+			.from('gallery')
+			.insert([{ url: publicUrl, caption: file.name }])
+			.select();
+
+		if (dbData && dbData[0]) {
+			uploadedItems.push(dbData[0]);
+		}
+	}
+
+	// Update local state
+	db.gallery = [...uploadedItems, ...db.gallery];
+	return uploadedItems;
+}
+
+export async function deleteGalleryImage(id, url) {
+	// 1. Hapus dari DB
+	const { error: dbError } = await supabase.from('gallery').delete().eq('id', id);
+	if (!dbError) {
+		// 2. Hapus dari State
+		db.gallery = db.gallery.filter(item => item.id !== id);
+		
+		// 3. (Opsional) Hapus dari Storage jika perlu
+		// Kita butuh path filenya, biasanya bisa diekstrak dari URL
+	}
 }
 
 // ── CRUD Helpers ──────────────────────────────────────────────────

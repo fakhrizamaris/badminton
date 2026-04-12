@@ -9,7 +9,9 @@
 		appConfig,
 		calcPlayerCost,
 		calcTotalCost,
-		db
+		db,
+		uploadGalleryImages,
+		deleteGalleryImage
 	} from '$lib/data/store.svelte.js';
 	import {
 		Plus,
@@ -25,7 +27,9 @@
 		CircleDollarSign,
 		Shield,
 		Map,
-		LogOut
+		LogOut,
+		Image as ImageIcon,
+		Upload
 	} from 'lucide-svelte';
 
 	import { enhance } from '$app/forms';
@@ -112,8 +116,23 @@
 		showCreateForm = false;
 	}
 
-	function toggleExpand(id) {
-		expandedSessionId = expandedSessionId === id ? null : id;
+	let isUploading = $state(false);
+	let galleryFileRef;
+
+	async function handleUpload(e) {
+		const files = e.target.files;
+		if (!files || files.length === 0) return;
+
+		isUploading = true;
+		try {
+			await uploadGalleryImages(files);
+			// Reset input
+			e.target.value = '';
+		} catch (err) {
+			console.error('Upload failed:', err);
+		} finally {
+			isUploading = false;
+		}
 	}
 </script>
 
@@ -286,6 +305,61 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- Gallery Management Section -->
+		<section class="mb-10 animate-fade-in-up" style="animation-delay: 50ms">
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-sm font-bold text-text-primary flex items-center gap-2">
+					<ImageIcon size={14} class="text-navy" />
+					Gallery Photos ({db.gallery.length})
+				</h2>
+				<button
+					onclick={() => galleryFileRef.click()}
+					disabled={isUploading}
+					class="flex items-center gap-2 px-4 py-2 bg-navy text-white text-xs font-bold rounded-xl hover:bg-navy/90 transition-all active:scale-95 disabled:opacity-50"
+				>
+					{#if isUploading}
+						<div class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+						Uploading...
+					{:else}
+						<Upload size={14} />
+						Upload Photos
+					{/if}
+				</button>
+				<input
+					type="file"
+					multiple
+					accept="image/*"
+					bind:this={galleryFileRef}
+					onchange={handleUpload}
+					class="hidden"
+				/>
+			</div>
+
+			{#if db.gallery.length === 0}
+				<div class="bg-surface rounded-3xl border border-border/50 p-8 text-center shadow-sm">
+					<div class="w-12 h-12 rounded-2xl bg-bg flex items-center justify-center mx-auto mb-3">
+						<ImageIcon size={20} class="text-text-tertiary" />
+					</div>
+					<p class="text-sm text-text-secondary">No dynamic photos yet</p>
+					<p class="text-xs text-text-tertiary mt-1">Upload memories to the community gallery</p>
+				</div>
+			{:else}
+				<div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+					{#each db.gallery as photo (photo.id)}
+						<div class="relative group aspect-square rounded-2xl overflow-hidden bg-bg border border-border/50 shadow-sm animate-scale-in">
+							<img src={photo.url} alt="Gallery" class="w-full h-full object-cover" />
+							<button
+								onclick={() => deleteGalleryImage(photo.id, photo.url)}
+								class="absolute top-1 right-1 w-7 h-7 bg-danger text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+							>
+								<Trash2 size={12} />
+							</button>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
 
 		<!-- Sessions List -->
 		<section class="pb-8">
