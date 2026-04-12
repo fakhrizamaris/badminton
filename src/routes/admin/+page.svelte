@@ -1,7 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
 	import {
-		sessions,
 		getParticipants,
 		createSession,
 		toggleLock,
