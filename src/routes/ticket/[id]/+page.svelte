@@ -5,7 +5,8 @@
 		getParticipantByTicket, 
 		getSession, 
 		calcPlayerCost, 
-		db 
+		db,
+		addToCalendar
 	} from '$lib/data/store.svelte.js';
 	import { 
 		ArrowLeft, 
@@ -15,7 +16,8 @@
 		MapPin, 
 		Calendar, 
 		Users,
-		Share2
+		Share2,
+		PlusCircle
 	} from 'lucide-svelte';
 
 	let ticketId = $derived(page.params.id);
@@ -36,7 +38,7 @@
 	function formatDate(dateStr) {
 		if (!dateStr) return '';
 		const date = new Date(dateStr + 'T00:00:00');
-		return date.toLocaleDateString('id-ID', {
+		return date.toLocaleDateString('en-US', {
 			weekday: 'long',
 			day: 'numeric',
 			month: 'long',
@@ -184,17 +186,26 @@
 		</div>
 
 		<!-- Action Buttons -->
-		<div class="mt-10 flex gap-4 w-full max-w-sm no-print">
+		<div class="mt-8 grid grid-cols-4 gap-3 w-full max-w-sm no-print">
 			<button 
 				onclick={handleDownload}
-				class="flex-1 py-4 bg-surface border border-border/50 rounded-2xl shadow-sm flex items-center justify-center gap-2 text-sm font-bold text-text-primary hover:shadow-md transition-all active:scale-95"
+				class="col-span-2 py-4 bg-surface border border-border/50 rounded-2xl shadow-sm flex items-center justify-center gap-2 text-sm font-bold text-text-primary hover:shadow-md transition-all active:scale-95"
 			>
 				<Download size={18} />
-				Download PDF
+				<span class="sm:inline hidden">Save PDF</span>
+				<span class="sm:hidden inline">Download</span>
+			</button>
+			<button 
+				onclick={() => addToCalendar(session)}
+				class="py-4 bg-surface border border-border/50 rounded-2xl shadow-sm flex items-center justify-center text-navy hover:shadow-md transition-all active:scale-95"
+				title="Add to Calendar"
+			>
+				<PlusCircle size={20} />
 			</button>
 			<button 
 				onclick={handleShare}
-				class="w-14 h-14 bg-navy text-white rounded-2xl shadow-lg shadow-navy/20 flex items-center justify-center transition-all active:scale-90"
+				class="py-4 bg-navy text-white rounded-2xl shadow-lg shadow-navy/20 flex items-center justify-center transition-all active:scale-95"
+				title="Share"
 			>
 				<Share2 size={20} />
 			</button>

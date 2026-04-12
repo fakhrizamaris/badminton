@@ -14,7 +14,9 @@
 		initDB,
 		db,
 		uploadPaymentProof,
-		isSessionPassed
+		isSessionPassed,
+		triggerConfetti,
+		triggerHaptic
 	} from '$lib/data/store.svelte.js';
 	import {
 		ArrowLeft,
@@ -146,6 +148,7 @@
 
 		const newParticipant = await addParticipant(page.params.id, trimmed, needsRacket);
 		if (newParticipant) {
+			triggerHaptic('success');
 			myParticipantId = newParticipant.id;
 			localStorage.setItem(`rsvp_${page.params.id}`, newParticipant.id);
 			
@@ -159,6 +162,7 @@
 				});
 				localStorage.setItem('my_tickets', JSON.stringify(allTickets));
 			}
+			triggerConfetti();
 		}
 		
 		playerName = '';
@@ -171,12 +175,12 @@
 	function sendWAConfirmation() {
 		if (!myRegistration || !session) return;
 		
-		const status = myRegistration.has_paid ? 'SUDAH BAYAR' : 'MENUNGGU VERIFIKASI';
-		const text = `Halo Admin, saya *${myRegistration.name}* konfirmasi pendaftaran badminton:\n\n` +
-					 `📍 Sesi: ${session.title}\n` +
-					 `📅 Tanggal: ${formatDate(session.date)}\n` +
+		const status = myRegistration.has_paid ? 'PAID' : 'AWAITING VERIFICATION';
+		const text = `Hi Admin, I'm *${myRegistration.name}* confirming my badminton registration:\n\n` +
+					 `📍 Session: ${session.title}\n` +
+					 `📅 Date: ${formatDate(session.date)}\n` +
 					 `💰 Status: ${status}\n\n` +
-					 `Bukti bayar sudah saya upload di website. Mohon dicek ya!`;
+					 `I have uploaded the payment proof on the website. Please check it!`;
 		
 		window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(text)}`, '_blank');
 	}
@@ -450,15 +454,15 @@
 				{#if !session.is_locked}
 					<div class="flex flex-col gap-2 mt-3 p-3 rounded-xl bg-navy/5">
 						<div class="flex items-start gap-2">
-							<Info size={14} class="text-navy flex-shrink-0 mt-0.5" />
+							<div class="w-1.5 h-1.5 rounded-full bg-navy mt-1.5 flex-shrink-0"></div>
 							<p class="text-[11px] text-text-secondary leading-relaxed">
-								Semakin banyak peserta yang ikut, biaya per orang akan <strong>semakin murah</strong>!
+								The more players join, the <strong>cheaper</strong> it gets per person!
 							</p>
 						</div>
 						<div class="flex items-start gap-2 pt-2 border-t border-navy/10">
-							<Users size={14} class="text-navy flex-shrink-0 mt-0.5" />
+							<div class="w-1.5 h-1.5 rounded-full bg-navy mt-1.5 flex-shrink-0"></div>
 							<p class="text-[11px] text-text-secondary leading-relaxed">
-								Biaya lapangan dibagi rata ke <strong>semua peserta</strong>. Biaya sewa raket hanya dibagi ke <strong>penyewa raket</strong>.
+								Court fees are split <strong>equally among everyone</strong>. Racket fees only apply to <strong>those who rent</strong>.
 							</p>
 						</div>
 					</div>
@@ -491,7 +495,7 @@
 				</div>
 
 				<p class="text-[11px] text-text-tertiary mb-4 leading-relaxed">
-					Harap konfirmasi ke Admin/Grup sebelum RSVP agar jumlah sewa lapangan bisa disesuaikan dan tidak berlebih.
+					Please confirm with the Admin/Group before RSVPing to ensure the court booking is synchronized.
 				</p>
 
 				<!-- Success Toast -->
@@ -522,7 +526,7 @@
 						<div class="flex items-center justify-between">
 							<div>
 								<p class="text-sm font-medium text-text-primary">Need a racket?</p>
-								<p class="text-xs text-text-tertiary mt-0.5">Patungan sewa Rp 20rb/raket</p>
+								<p class="text-xs text-text-tertiary mt-0.5">Split rental Rp 20k/racket</p>
 							</div>
 							<button
 								type="button"
@@ -539,7 +543,7 @@
 						</div>
 						<div class="pt-2 border-t border-border/50">
 							<p class="text-[10px] text-text-tertiary leading-relaxed italic">
-								* Maksimal 20 raket tersedia (tergantung stok GOR). 1 raket bisa digunakan bergantian untuk 2-4 orang agar lebih hemat.
+								* Max 20 rackets available. 1 racket can be shared between 2-4 people for maximum efficiency.
 							</p>
 						</div>
 					</div>
@@ -711,15 +715,15 @@
 								<img src={db.settings.qris_url} alt="QRIS Code" class="w-full h-full object-contain" />
 							</div>
 							<p class="text-[10px] text-text-secondary text-center uppercase tracking-widest font-bold mb-4">
-								Scan QRIS untuk Bayar
+								Scan QRIS to Pay
 							</p>
 						{:else}
 							<!-- Fallback Message -->
 							<div class="aspect-square bg-white rounded-2xl flex flex-col items-center justify-center p-8 border border-border/50 mb-4 shadow-inner">
 								<QrCode size={48} class="text-navy/20 mb-3" />
 								<p class="text-[11px] text-text-secondary text-center font-medium leading-relaxed">
-									Gambar QRIS menyusul.<br/>
-									Silakan <strong>TF ke GoPay</strong> saja langsung ke nomor WhatsApp <strong>Zulkifli</strong>.
+									QRIS image pending.<br/>
+									Please <strong>transfer via GoPay</strong> directly to <strong>Zulkifli</strong>'s WhatsApp number.
 								</p>
 							</div>
 						{/if}

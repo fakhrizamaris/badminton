@@ -1,10 +1,11 @@
 <script>
 	import { onMount } from 'svelte';
-	import { db, getParticipants, appConfig, isSessionPassed } from '$lib/data/store.svelte.js';
-	import { MapPin, Calendar, Users, ChevronRight, Lock, Phone, Mail } from 'lucide-svelte';
+	import { db, getParticipants, appConfig, isSessionPassed, toggleTheme } from '$lib/data/store.svelte.js';
+	import { MapPin, Calendar, Users, ChevronRight, Lock, Phone, Mail, Sun, Moon, Menu, X } from 'lucide-svelte';
 	import heroLogo from '$lib/assets/logo.png';
 
 	let myTickets = $state([]);
+	let isMenuOpen = $state(false);
 
 	onMount(() => {
 		myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
@@ -26,6 +27,7 @@
 	// Smooth scroll to section
 	function scrollToSection(e, id) {
 		e.preventDefault();
+		isMenuOpen = false; // Always close mobile menu
 		if (id) {
 			const el = document.getElementById(id);
 			if (el) {
@@ -82,53 +84,67 @@
 </svelte:head>
 
 <!-- Top Navigation Bar -->
-<nav class="sticky top-0 z-40 px-3 sm:px-4 pt-4 pb-2 animate-fade-in">
-	<div class="max-w-5xl mx-auto bg-navy rounded-full px-1.5 sm:px-2 py-1.5 sm:py-2 flex items-center justify-between shadow-lg shadow-navy/25">
-		<div class="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide">
-			<a href="/" onclick={(e) => scrollToSection(e, null)} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap">
-				Home
-			</a>
-			<a href="#schedule" onclick={(e) => scrollToSection(e, 'schedule')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap">
-				Schedule
-			</a>
-			<a href="#gallery" onclick={(e) => scrollToSection(e, 'gallery')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap hidden xs:block">
-				Gallery
-			</a>
-			<a href="#location" onclick={(e) => scrollToSection(e, 'location')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors hidden sm:block">
-				Location
-			</a>
-			<a href="#faq" onclick={(e) => scrollToSection(e, 'faq')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors hidden md:block">
-				FAQ
-			</a>
-			<a href="#contact" onclick={(e) => scrollToSection(e, 'contact')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap">
-				Contact
-			</a>
+<nav class="fixed top-0 left-0 right-0 z-50 px-5 pt-5 pointer-events-none">
+	<div class="max-w-5xl mx-auto flex items-center justify-between pointer-events-auto">
+		<!-- Desktop Capsule Nav -->
+		<div class="bg-navy/95 backdrop-blur-md rounded-full px-2 py-2 flex items-center gap-1 shadow-xl shadow-navy/20 border border-white/10 hidden sm:flex">
+			<a href="/" onclick={(e) => scrollToSection(e, null)} class="px-5 py-2 text-white/90 text-[13px] font-bold rounded-full hover:bg-white/10 transition-colors">Home</a>
+			<a href="#schedule" onclick={(e) => scrollToSection(e, 'schedule')} class="px-5 py-2 text-white/90 text-[13px] font-bold rounded-full hover:bg-white/10 transition-colors">Schedule</a>
+			<a href="#gallery" onclick={(e) => scrollToSection(e, 'gallery')} class="px-5 py-2 text-white/90 text-[13px] font-bold rounded-full hover:bg-white/10 transition-colors">Gallery</a>
+			<a href="#location" onclick={(e) => scrollToSection(e, 'location')} class="px-5 py-2 text-white/90 text-[13px] font-bold rounded-full hover:bg-white/10 transition-colors">Location</a>
+			<a href="#contact" onclick={(e) => scrollToSection(e, 'contact')} class="px-5 py-2 text-white/90 text-[13px] font-bold rounded-full hover:bg-white/10 transition-colors">Contact</a>
 		</div>
-		<div class="flex items-center gap-1 sm:gap-2">
+
+		<!-- Mobile Burger Button -->
+		<button 
+			onclick={() => (isMenuOpen = !isMenuOpen)}
+			class="sm:hidden w-12 h-12 bg-navy text-white rounded-2xl flex items-center justify-center shadow-lg shadow-navy/20 active:scale-90 transition-all"
+		>
+			{#if isMenuOpen}
+				<X size={24} />
+			{:else}
+				<Menu size={24} />
+			{/if}
+		</button>
+
+		<!-- Right Side: Theme + Passes -->
+		<div class="flex items-center gap-2">
+			<!-- Theme Toggle -->
+			<button 
+				onclick={toggleTheme}
+				class="w-12 h-12 bg-surface border border-border/50 rounded-2xl flex items-center justify-center text-text-primary shadow-sm hover:shadow-md transition-all active:scale-90"
+			>
+				{#if db.theme === 'dark'}
+					<Sun size={20} />
+				{:else}
+					<Moon size={20} />
+				{/if}
+			</button>
+
 			{#if myTickets.length > 0}
 				<div class="relative group">
-					<button class="px-3 sm:px-4 py-1.5 sm:py-2 bg-white/10 text-white text-[11px] sm:text-sm font-bold rounded-full hover:bg-white/20 transition-colors flex items-center gap-1 focus:outline-none">
+					<button class="h-12 px-5 bg-navy text-white text-[13px] font-black rounded-2xl shadow-lg shadow-navy/10 flex items-center gap-2 hover:bg-navy/90 transition-all">
 						Passes
-						<span class="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-danger text-[8px] font-black text-white">
+						<span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-black text-navy">
 							{myTickets.length}
 						</span>
 					</button>
 
-					<!-- Dropdown (Professional) -->
+					<!-- Dropdown Desktop -->
 					<div class="absolute top-full right-0 mt-3 w-64 bg-surface rounded-2xl shadow-2xl border border-border/50 overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all transform scale-95 group-hover:scale-100 origin-top-right">
-						<div class="p-3 bg-bg border-b border-border/50">
-							<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Active Tickets</p>
+						<div class="p-4 bg-bg border-b border-border/50">
+							<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Your Active Passes</p>
 						</div>
 						<div class="max-h-60 overflow-y-auto divide-y divide-border/30">
 							{#each myTickets as t}
 								<a href="/ticket/{t.id}" class="block p-4 hover:bg-navy/5 transition-all group/item">
 									<div class="flex justify-between items-start">
 										<div class="min-w-0 pr-3">
-											<p class="text-[11px] font-bold text-text-primary truncate">{t.session || 'Session'}</p>
-											<p class="text-[9px] text-text-tertiary mt-1 font-mono uppercase">#{t.id}</p>
+											<p class="text-xs font-bold text-text-primary truncate">{t.session || 'Session'}</p>
+											<p class="text-[10px] text-text-tertiary mt-1 font-mono uppercase">#{t.id}</p>
 										</div>
-										<div class="w-6 h-6 rounded-lg bg-navy/5 flex items-center justify-center text-navy group-hover/item:bg-navy group-hover/item:text-white transition-all flex-shrink-0">
-											<ChevronRight size={14} />
+										<div class="w-8 h-8 rounded-xl bg-navy/5 flex items-center justify-center text-navy group-hover/item:bg-navy group-hover/item:text-white transition-all">
+											<ChevronRight size={16} />
 										</div>
 									</div>
 								</a>
@@ -137,18 +153,40 @@
 					</div>
 				</div>
 			{/if}
-
-			<a
-			href="#schedule"
-			onclick={(e) => scrollToSection(e, 'schedule')}
-			class="px-3 sm:px-5 py-1.5 sm:py-2 bg-white text-navy text-[10px] sm:text-sm font-bold rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap"
-		>
-			Join Now
-		</a>
+		</div>
 	</div>
+
+	<!-- Mobile Menu Overlay -->
+	{#if isMenuOpen}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div 
+			class="fixed inset-0 bg-bg/95 backdrop-blur-xl z-[45] sm:hidden animate-fade-in pointer-events-auto"
+			onclick={() => (isMenuOpen = false)}
+		>
+			<div class="flex flex-col items-center justify-center h-full gap-8 p-10 stagger">
+				<a href="/" onclick={(e) => scrollToSection(e, null)} class="text-3xl font-black text-text-primary hover:text-navy transition-colors">Home</a>
+				<a href="#schedule" onclick={(e) => scrollToSection(e, 'schedule')} class="text-3xl font-black text-text-primary hover:text-navy transition-colors">Schedule</a>
+				<a href="#gallery" onclick={(e) => scrollToSection(e, 'gallery')} class="text-3xl font-black text-text-primary hover:text-navy transition-colors">Gallery</a>
+				<a href="#location" onclick={(e) => scrollToSection(e, 'location')} class="text-3xl font-black text-text-primary hover:text-navy transition-colors">Location</a>
+				<a href="#contact" onclick={(e) => scrollToSection(e, 'contact')} class="text-3xl font-black text-text-primary hover:text-navy transition-colors">Contact</a>
+				
+				<div class="h-px w-20 bg-border/50 my-4"></div>
+				
+				{#if myTickets.length > 0}
+					<p class="text-[10px] font-black text-text-tertiary uppercase tracking-[0.2em]">Your Passes</p>
+					<div class="flex flex-col items-center gap-4 w-full">
+						{#each myTickets as t}
+							<a href="/ticket/{t.id}" class="text-sm font-bold text-navy bg-navy/5 px-6 py-3 rounded-2xl w-full text-center">{t.session}</a>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </nav>
 
-<div class="max-w-5xl mx-auto px-5">
+<div class="max-w-5xl mx-auto px-5 pt-28 sm:pt-32">
 
 	<!-- Hero Section -->
 	<section id="home" class="pt-6 sm:pt-10 pb-10 sm:pb-12 animate-fade-in-up">
@@ -379,23 +417,23 @@
 
 	<!-- FAQ Section -->
 	<section id="faq" class="pb-16 pt-8 animate-fade-in-up" style="animation-delay: 240ms">
-		<h2 class="text-xl sm:text-2xl font-bold text-text-primary mb-6">Pertanyaan Umum (FAQ)</h2>
+		<h2 class="text-xl sm:text-2xl font-bold text-text-primary mb-6">Frequently Asked Questions (FAQ)</h2>
 		<div class="space-y-4">
 			<div class="bg-surface rounded-2xl border border-border/50 p-5 shadow-sm">
-				<h3 class="font-bold text-text-primary text-sm mb-2">Bagaimana cara perhitungan biaya split-bill?</h3>
-				<p class="text-sm text-text-secondary">Biaya dibagi secara adil. Total biaya sewa lapangan dibagi rata ke seluruh peserta, sedangkan biaya sewa raket hanya dibagi kepada peserta yang menyewa raket saja.</p>
+				<h3 class="font-bold text-text-primary text-sm mb-2">How is the split-bill calculated?</h3>
+				<p class="text-sm text-text-secondary">Costs are divided fairly. The total court rental fee is split among all participants, while racket rental fees are only charged to those who rent one.</p>
 			</div>
 			<div class="bg-surface rounded-2xl border border-border/50 p-5 shadow-sm">
-				<h3 class="font-bold text-text-primary text-sm mb-2">Kapan batas waktu (deadline) RSVP?</h3>
-				<p class="text-sm text-text-secondary">Anda harus melakukan RSVP paling lambat H-1 (24 jam sebelum sesi dimulai) agar admin dapat menghitung dan memesan jumlah lapangan serta raket yang sesuai.</p>
+				<h3 class="font-bold text-text-primary text-sm mb-2">When is the RSVP deadline?</h3>
+				<p class="text-sm text-text-secondary">RSVP must be completed at least 24 hours before the session starts to allow coordinators to reserve the correct number of courts and rackets.</p>
 			</div>
 			<div class="bg-surface rounded-2xl border border-border/50 p-5 shadow-sm">
-				<h3 class="font-bold text-text-primary text-sm mb-2">Mengapa penyewaan raket dibatasi?</h3>
-				<p class="text-sm text-text-secondary">Terdapat batas kuota sekitar 20 raket. Untuk efisiensi, satu raket sewaan sebaiknya digunakan bergantian untuk 2-4 pemain dalam sesi tersebut.</p>
+				<h3 class="font-bold text-text-primary text-sm mb-2">Why is racket rental limited?</h3>
+				<p class="text-sm text-text-secondary">We have a limited stock of community rackets. For efficiency, one rented racket may be shared among 2-4 players during the session if needed.</p>
 			</div>
 			<div class="bg-surface rounded-2xl border border-border/50 p-5 shadow-sm">
-				<h3 class="font-bold text-text-primary text-sm mb-2">Bagaimana cara pembayarannya?</h3>
-				<p class="text-sm text-text-secondary">Pembayaran dilakukan melalui QRIS atau transfer manual ke koordinator setelah nominal akhir muncul di detail sesi (setelah RSVP ditutup).</p>
+				<h3 class="font-bold text-text-primary text-sm mb-2">How do I make a payment?</h3>
+				<p class="text-sm text-text-secondary">Payments are made via QRIS or manual transfer to the coordinator after the final amount is shown in your session pass (once RSVP is closed).</p>
 			</div>
 		</div>
 	</section>

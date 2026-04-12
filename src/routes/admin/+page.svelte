@@ -16,8 +16,13 @@
 		deleteGalleryImage,
 		updateQRIS,
 		deleteSession,
-		isSessionPassed
+		isSessionPassed,
+		getCommunityStats,
+		triggerConfetti,
+		triggerHaptic,
+		toggleTheme
 	} from '$lib/data/store.svelte.js';
+
 	import {
 		Plus,
 		Lock,
@@ -35,7 +40,9 @@
 		LogOut,
 		Image as ImageIcon,
 		Upload,
-		QrCode
+		QrCode,
+		Sun,
+		Moon
 	} from 'lucide-svelte';
 
 	import { enhance } from '$app/forms';
@@ -52,8 +59,12 @@
 	let showCreateForm = $state(false);
 	let isUploadingQRIS = $state(false);
 	let qrisSuccess = $state(false);
+	let qrisPreview = $state(null); // Local preview
 
-	// ── Payment Verification Modal ─────────────────────────────────
+	// ── Gallery State ─────────────────────────────────────────────
+	let isUploading = $state(false);
+	let galleryFileRef;
+	let localPreviews = $state([]); // Previews for images being uploaded
 	let selectedVerification = $state(null); // participant object
 	let verificationSession = $state(null);  // current session
 	let verificationCost = $state(0);
@@ -72,8 +83,10 @@
 
 	async function handleVerifyPayment() {
 		if (selectedVerification && !selectedVerification.has_paid) {
+			triggerHaptic('success');
 			await togglePaid(selectedVerification.id);
 			selectedVerification.has_paid = true;
+			triggerConfetti();
 		}
 		closeVerification();
 	}
@@ -82,15 +95,19 @@
 		const file = e.target.files[0];
 		if (!file) return;
 
+		// Local preview immediately
+		qrisPreview = URL.createObjectURL(file);
+		
 		isUploadingQRIS = true;
 		qrisSuccess = false;
 		try {
 			await updateQRIS(file);
 			qrisSuccess = true;
-			setTimeout(() => { qrisSuccess = false; }, 3000);
+			setTimeout(() => { qrisSuccess = false; qrisPreview = null; }, 3000);
 		} catch (err) {
 			console.error('QRIS upload failed:', err);
 			alert('Failed to upload QRIS. Check console.');
+			qrisPreview = null;
 		} finally {
 			isUploadingQRIS = false;
 		}
@@ -177,20 +194,24 @@
 		expandedSessionId = expandedSessionId === id ? null : id;
 	}
 
-	let isUploading = $state(false);
-	let galleryFileRef;
+
 
 	async function handleUpload(e) {
-		const files = e.target.files;
+		const files = Array.from(e.target.files);
 		if (!files || files.length === 0) return;
 
+		// Create local previews
+		localPreviews = files.map(f => URL.createObjectURL(f));
+		
 		isUploading = true;
 		try {
 			await uploadGalleryImages(files);
-			// Reset input
+			// Reset
 			e.target.value = '';
+			localPreviews = [];
 		} catch (err) {
 			console.error('Upload failed:', err);
+			localPreviews = [];
 		} finally {
 			isUploading = false;
 		}
@@ -211,17 +232,58 @@
 					<h1 class="text-2xl font-bold text-text-primary">Admin Dashboard</h1>
 					<p class="text-sm text-text-secondary mt-1">Manage sessions & participants</p>
 				</div>
-				<form method="POST" action="/admin/login?/logout" use:enhance>
-					<button
-						type="submit"
-						class="w-10 h-10 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-95"
-						title="Logout"
+				<div class="flex items-center gap-3">
+					<button 
+						onclick={toggleTheme}
+						class="w-10 h-10 rounded-xl bg-surface border border-border/50 flex items-center justify-center text-text-primary shadow-sm hover:shadow-md transition-all active:scale-95"
 					>
-						<LogOut size={18} />
+						{#if db.theme === 'dark'}
+							<Sun size={18} />
+						{:else}
+							<Moon size={18} />
+						{/if}
 					</button>
-				</form>
+
+					<form method="POST" action="/admin/login?/logout" use:enhance>
+						<button
+							type="submit"
+							class="w-10 h-10 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-95"
+							title="Logout"
+						>
+							<LogOut size={18} />
+						</button>
+					</form>
+				</div>
 			</div>
 		</header>
+
+		<!-- Community Insights / Stats -->
+		{#if db.isReady}
+		<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8 animate-fade-in-up" style="animation-delay: 100ms">
+			<div class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm">
+				<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1">Total Revenue</p>
+				<p class="text-lg font-black text-success leading-tight">{formatCurrency(getCommunityStats().totalRevenue)}</p>
+			</div>
+			<div class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm">
+				<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1">Total RSVP</p>
+				<p class="text-lg font-black text-text-primary leading-tight">{getCommunityStats().totalPlayers}</p>
+			</div>
+			<div class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm">
+				<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1">Unique Players</p>
+				<p class="text-lg font-black text-text-primary leading-tight">{getCommunityStats().uniquePlayers}</p>
+			</div>
+			<div class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm">
+				<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1">Active Sessions</p>
+				<p class="text-lg font-black text-navy leading-tight">{getCommunityStats().activeSessions}</p>
+			</div>
+		</div>
+		{:else}
+		<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+			{#each Array(4) as _}
+			<div class="bg-surface rounded-2xl p-4 border border-border/50 h-20 skeleton"></div>
+			{/each}
+		</div>
+		{/if}
 
 		<!-- Action Buttons -->
 		<div class="grid grid-cols-2 gap-3 mb-5 animate-fade-in-up">
@@ -274,6 +336,8 @@
 								class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
 							/>
 						</div>
+					</div>
+
 					<div class="grid grid-cols-2 gap-3">
 						<div>
 							<label for="session-time" class="block text-xs font-medium text-text-secondary mb-1.5">Starting Time</label>
@@ -376,53 +440,62 @@
 			</div>
 		{/if}
 
-		<!-- Settings & QRIS Module Here -->
-		<div class="bg-surface rounded-3xl border border-border/50 p-6 shadow-sm mt-5">
-			<div class="flex items-center gap-3 mb-5">
+		<!-- Settings & QRIS Module -->
+		<div class="bg-surface rounded-3xl border border-border/50 p-6 shadow-sm mt-5 overflow-hidden relative">
+			{#if isUploadingQRIS}
+				<div class="absolute inset-0 bg-white/60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center animate-fade-in">
+					<div class="w-8 h-8 border-4 border-navy border-t-white rounded-full animate-spin mb-2"></div>
+					<p class="text-[10px] font-black text-navy uppercase tracking-widest">Updating QRIS...</p>
+				</div>
+			{/if}
+
+			<div class="flex items-center gap-3 mb-6">
 				<div class="w-10 h-10 rounded-xl bg-navy/5 flex items-center justify-center text-navy">
 					<QrCode size={20} />
 				</div>
 				<div>
-							<h3 class="text-sm font-bold text-text-primary">Payment Settings</h3>
-							<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-semibold">Update QRIS Code</p>
-						</div>
-					</div>
-
-					<div class="space-y-4">
-						<div class="flex items-center gap-4 p-4 bg-bg rounded-2xl border border-border/50">
-							<div class="w-16 h-16 bg-white rounded-lg border border-border/50 flex items-center justify-center overflow-hidden">
-								{#if db.settings?.qris_url}
-									<img src={db.settings.qris_url} alt="QRIS" class="w-full h-full object-contain" />
-								{:else}
-									<QrCode size={24} class="text-text-tertiary/20" />
-								{/if}
-							</div>
-							<div class="flex-1">
-								<p class="text-xs font-bold text-text-primary mb-1">Main QRIS Code</p>
-								<p class="text-[10px] text-text-secondary">This code will be shown when users pay fees.</p>
-							</div>
-						</div>
-
-						<label class="relative flex items-center justify-center gap-2 p-3.5 bg-navy text-white text-xs font-bold rounded-2xl cursor-pointer hover:bg-navy/90 transition-all active:scale-95 shadow-md">
-							<input type="file" accept="image/*" class="hidden" onchange={handleQRISUpload} disabled={isUploadingQRIS} />
-							{#if isUploadingQRIS}
-								<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-								<span>UPDATING...</span>
-							{:else if qrisSuccess}
-								<Check size={16} />
-								<span>QRIS UPDATED!</span>
-							{:else}
-								<Upload size={16} />
-								<span>UPDATE QRIS IMAGE</span>
-							{/if}
-						</label>
-					</div>
+					<h3 class="text-sm font-bold text-text-primary">Payment Settings</h3>
+					<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-semibold">QRIS & Global Config</p>
 				</div>
 			</div>
 
+			<div class="space-y-4">
+				<div class="flex items-center gap-4 p-4 bg-bg rounded-2xl border border-border/50 group">
+					<div class="w-20 h-20 bg-white rounded-xl border border-border/50 flex items-center justify-center overflow-hidden shadow-inner relative">
+						{#if qrisPreview}
+							<img src={qrisPreview} alt="Preview" class="w-full h-full object-contain animate-pulse" />
+						{:else if db.settings?.qris_url}
+							<img src={db.settings.qris_url} alt="QRIS" class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" />
+						{:else}
+							<QrCode size={24} class="text-text-tertiary/20" />
+						{/if}
+					</div>
+					<div class="flex-1">
+						<p class="text-xs font-bold text-text-primary mb-1">Active QRIS Code</p>
+						<p class="text-[10px] text-text-secondary leading-relaxed uppercase tracking-tight font-medium">
+							This code is displayed on all participant checkout pages.
+						</p>
+					</div>
+				</div>
+
+				<label class="relative flex items-center justify-center gap-2 py-4 bg-navy text-white text-xs font-black rounded-2xl cursor-pointer hover:bg-navy-dark transition-all active:scale-[0.98] shadow-lg shadow-navy/20 overflow-hidden group">
+					<input type="file" accept="image/*" class="hidden" onchange={handleQRISUpload} disabled={isUploadingQRIS} />
+					<div class="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+					
+					{#if qrisSuccess}
+						<Check size={16} strokeWidth={3} class="animate-bounce" />
+						<span>SUCCESSFULLY UPDATED</span>
+					{:else}
+						<Upload size={16} strokeWidth={3} />
+						<span>UPDATE QRIS IMAGE</span>
+					{/if}
+				</label>
+			</div>
+		</div>
+
 		<!-- Gallery Management Section -->
 		<section class="mb-10 animate-fade-in-up" style="animation-delay: 50ms">
-			<div class="flex items-center justify-between mb-4">
+			<div class="flex items-center justify-between mb-4 mt-4">
 				<h2 class="text-sm font-bold text-text-primary flex items-center gap-2">
 					<ImageIcon size={14} class="text-navy" />
 					Gallery Photos ({db.gallery.length})
@@ -450,29 +523,56 @@
 				/>
 			</div>
 
-			{#if db.gallery.length === 0}
+			{#if db.gallery.length === 0 && localPreviews.length === 0}
 				<div class="bg-surface rounded-3xl border border-border/50 p-8 text-center shadow-sm">
 					<div class="w-12 h-12 rounded-2xl bg-bg flex items-center justify-center mx-auto mb-3">
 						<ImageIcon size={20} class="text-text-tertiary" />
 					</div>
-					<p class="text-sm text-text-secondary">No dynamic photos yet</p>
-					<p class="text-xs text-text-tertiary mt-1">Upload memories to the community gallery</p>
+					<p class="text-sm text-text-secondary font-bold">No gallery photos yet</p>
+					<p class="text-[10px] text-text-tertiary mt-1 uppercase tracking-widest">Upload community memories</p>
 				</div>
 			{:else}
 				<div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+					<!-- Existing Photos -->
 					{#each db.gallery as photo (photo.id)}
 						<div class="relative group aspect-square rounded-2xl overflow-hidden bg-bg border border-border/50 shadow-sm animate-scale-in">
-							<img src={photo.url} alt="Gallery" class="w-full h-full object-cover" />
-							<button
-								onclick={() => deleteGalleryImage(photo.id, photo.url)}
-								class="absolute top-1 right-1 w-7 h-7 bg-danger text-white rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-							>
-								<Trash2 size={12} />
-							</button>
+							<img 
+								src={photo.url} 
+								alt="Gallery" 
+								class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+								onerror={(e) => { 
+									// Optional: try to append another cache buster on first fail
+									if (!e.currentTarget.dataset.retried) {
+										e.currentTarget.dataset.retried = "true";
+										e.currentTarget.src = photo.url + '&retry=' + Date.now();
+									} else {
+										e.currentTarget.src = 'https://placehold.co/400x400/f3f4f6/a1a1aa?text=Error'; 
+									}
+								}}
+							/>
+							<div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+								<button
+									onclick={() => deleteGalleryImage(photo.id, photo.url)}
+									class="w-8 h-8 bg-danger text-white rounded-xl flex items-center justify-center shadow-lg active:scale-90 hover:bg-danger-dark transition-all"
+								>
+									<Trash2 size={14} />
+								</button>
+							</div>
+						</div>
+					{/each}
+
+					<!-- Incoming Previews (while uploading) -->
+					{#each localPreviews as preview}
+						<div class="relative aspect-square rounded-2xl overflow-hidden bg-bg border border-border/50 shadow-sm animate-pulse">
+							<img src={preview} alt="Loading..." class="w-full h-full object-cover opacity-50 grayscale" />
+							<div class="absolute inset-0 flex items-center justify-center">
+								<div class="w-6 h-6 border-2 border-navy border-t-white rounded-full animate-spin"></div>
+							</div>
 						</div>
 					{/each}
 				</div>
 			{/if}
+
 		</section>
 
 		<!-- Sessions List -->
@@ -580,17 +680,17 @@
 											{@const cost = calcPlayerCost(session, sessionParticipants, participant.needs_racket)}
 											<div class="flex items-center gap-3 px-4 py-3">
 												<!-- Avatar -->
-												<div class="w-8 h-8 rounded-full {participant.needs_racket ? 'bg-navy/10' : 'bg-navy/5'} flex items-center justify-center flex-shrink-0">
+												<div class="w-8 h-8 rounded-full {participant?.needs_racket ? 'bg-navy/10' : 'bg-navy/5'} flex items-center justify-center flex-shrink-0">
 													<span class="text-xs font-bold text-navy">
-														{participant.name.charAt(0).toUpperCase()}
+														{participant?.name?.charAt(0)?.toUpperCase() || '?'}
 													</span>
 												</div>
 
 												<!-- Name & Proof -->
 												<div class="flex-1 min-w-0">
 													<div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
-														<p class="text-sm font-medium text-text-primary truncate max-w-[100px] sm:max-w-none">{participant.name}</p>
-														{#if participant.payment_proof_url}
+														<p class="text-sm font-medium text-text-primary truncate max-w-[100px] sm:max-w-none">{participant?.name || 'Unknown'}</p>
+														{#if participant?.payment_proof_url}
 															<button 
 																onclick={() => openVerification(participant, session, cost)}
 																class="flex items-center gap-1 px-1.5 py-0.5 bg-navy/5 text-navy text-[9px] font-bold rounded-lg hover:bg-navy/10 transition-colors border border-navy/10 whitespace-nowrap"
@@ -601,7 +701,7 @@
 														{/if}
 													</div>
 													<div class="flex items-center gap-2 mt-0.5">
-														{#if participant.needs_racket}
+														{#if participant?.needs_racket}
 															<span class="text-[10px] text-navy/60">🎾 Rent</span>
 														{:else}
 															<span class="text-[10px] text-text-tertiary">🏸 Own</span>
@@ -675,7 +775,7 @@
 					<div class="bg-bg rounded-2xl p-4 border border-border/50 space-y-3">
 						<div class="flex justify-between items-center">
 							<span class="text-xs text-text-secondary">Participant</span>
-							<span class="text-sm font-bold text-text-primary">{selectedVerification.name}</span>
+							<span class="text-sm font-bold text-text-primary">{selectedVerification?.name || 'Unknown'}</span>
 						</div>
 						<div class="flex justify-between items-center">
 							<span class="text-xs text-text-secondary">Expected Amount</span>

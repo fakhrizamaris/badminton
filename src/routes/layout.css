@@ -18,6 +18,18 @@
 	--color-danger: #FF3B30;
 }
 
+/* Dark Mode Overrides */
+:root.dark-mode {
+	--color-surface: #1C1C1E;
+	--color-bg: #000000;
+	--color-bg-alt: #121212;
+	--color-text-primary: #F5F5F7;
+	--color-text-secondary: #8E8E93;
+	--color-text-tertiary: #636366;
+	--color-border: #2C2C2E;
+	--color-navy: #2A5A9E;
+}
+
 @layer base {
 	html {
 		font-family: var(--font-sans);
@@ -25,6 +37,7 @@
 		-moz-osx-font-smoothing: grayscale;
 		background-color: var(--color-bg);
 		color: var(--color-text-primary);
+		transition: background-color 0.3s ease, color 0.3s ease;
 	}
 
 	body {
@@ -83,6 +96,26 @@
 
 .animate-slide-up {
 	animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Shimmer Animation */
+@keyframes shimmer {
+	0% { background-position: -200% 0; }
+	100% { background-position: 200% 0; }
+}
+
+.skeleton {
+	background: linear-gradient(90deg, var(--color-bg-alt) 25%, var(--color-border) 50%, var(--color-bg-alt) 75%);
+	background-size: 200% 100%;
+	animation: shimmer 1.5s infinite linear;
+	border-radius: 0.5rem;
+}
+
+@media (prefers-color-scheme: dark) {
+	.skeleton {
+		background: linear-gradient(90deg, #2c2c2e 25%, #3a3a3c 50%, #2c2c2e 75%);
+		background-size: 200% 100%;
+	}
 }
 
 /* Stagger children */

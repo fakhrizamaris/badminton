@@ -11,8 +11,37 @@ export const db = $state({
 	participants: [],
 	gallery: [],
 	settings: { qris_url: null },
+	theme: 'light',
 	isReady: false
 });
+
+/**
+ * Derived Statistics for Admin Dashboard
+ */
+const stats = $derived.by(() => {
+	if (!db.participants.length) return { totalRevenue: 0, totalPlayers: 0, uniquePlayers: 0, growth: 0 };
+	
+	const paidParticipants = db.participants.filter(p => p.has_paid);
+	const totalRevenue = paidParticipants.reduce((acc, p) => {
+		const session = db.sessions.find(s => s.id === p.session_id);
+		return acc + (session ? calcPlayerCost(session, db.participants.filter(dp => dp.session_id === session.id), p.needs_racket) : 0);
+	}, 0);
+	
+	const uniquePlayers = new Set(
+		db.participants
+			.filter(p => p && p.name)
+			.map(p => p.name.toLowerCase().trim())
+	).size;
+	
+	return {
+		totalRevenue,
+		totalPlayers: db.participants.length,
+		uniquePlayers,
+		activeSessions: db.sessions.filter(s => s && !isSessionPassed(s)).length
+	};
+});
+
+export const getCommunityStats = () => stats;
 
 /**
  * Initialize all database data
@@ -21,24 +50,67 @@ export async function initDB() {
 	if (db.isReady) return;
 	
 	try {
-		const [sRes, pRes, gRes, setRes] = await Promise.all([
-			supabase.from('sessions').select('*').order('created_at', { ascending: false }),
+		console.log('🚀 Initializing DB...');
+		
+		// 1. Prioritize sessions (schedule) for instant UI feedback
+		const sessionPromise = supabase.from('sessions').select('*').order('created_at', { ascending: false });
+		
+		// 2. Prepare secondary data in the background
+		const backgroundPromise = Promise.all([
 			supabase.from('participants').select('*').order('created_at', { ascending: true }),
 			supabase.from('gallery').select('*').order('created_at', { ascending: false }),
-			supabase.from('settings').select('*').eq('id', 'global').single()
+			supabase.from('settings').select('*').eq('id', 'global').maybeSingle()
 		]);
 
-		if (sRes.data) db.sessions = sRes.data;
+		// Add a fail-safe timeout for the critical initial data
+		const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 8000));
+
+		try {
+			const { data: sData } = await Promise.race([sessionPromise, timeoutPromise]);
+			if (sData) {
+				console.log('✅ Sessions loaded');
+				db.sessions = sData;
+			}
+		} catch (err) {
+			console.warn('⚠️ Session load slow or timed out. Moving on to unblock UI.');
+		}
+		
+		// Immediately enable UI even if background data is still loading
+		db.isReady = true;
+
+		// Load theme (instant)
+		const savedTheme = localStorage.getItem('app_theme') || 'light';
+		db.theme = savedTheme;
+		applyTheme(savedTheme);
+
+		// Update secondary data asynchronously
+		const [pRes, gRes, setRes] = await backgroundPromise;
 		if (pRes.data) db.participants = pRes.data;
 		if (gRes.data) db.gallery = gRes.data;
-		if (setRes.data) db.settings = setRes.data;
-		
-		db.isReady = true;
+		if (setRes.data) db.settings = setRes.data || db.settings;
+		console.log('🏁 DB Ready');
+
 	} catch (err) {
-		console.error('Failed to init DB:', err);
-		// Fallback minimal agar app tidak crash
+		console.error('❌ Failed to init DB:', err);
+		// Minimal fallback to avoid stuck UI
 		db.isReady = true;
 	}
+}
+
+function applyTheme(theme) {
+	if (typeof document !== 'undefined') {
+		if (theme === 'dark') {
+			document.documentElement.classList.add('dark-mode');
+		} else {
+			document.documentElement.classList.remove('dark-mode');
+		}
+	}
+}
+
+export function toggleTheme() {
+	db.theme = db.theme === 'light' ? 'dark' : 'light';
+	localStorage.setItem('app_theme', db.theme);
+	applyTheme(db.theme);
 }
 
 /**
@@ -64,26 +136,46 @@ async function safeUpload(bucket, path, file, options = {}) {
 }
 
 export async function uploadGalleryImages(files) {
-	for (const file of files) {
-		const compressed = await compressImage(file);
-		const fileName = `gallery-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+	console.log(`📸 Starting upload of ${files.length} images...`);
+	for (let i = 0; i < files.length; i++) {
+		const file = files[i];
+		console.log(`[${i+1}/${files.length}] Compressing...`);
+		const compressed = await compressImage(file, 'gallery');
 		
-		const { data: uploadData, error: uploadError } = await safeUpload('gallery', fileName, compressed);
+		const fileName = `gallery-${Date.now()}-${Math.random().toString(36).substring(7)}.webp`;
+		console.log(`[${i+1}/${files.length}] Uploading ${fileName}...`);
+		
+		const { data: uploadData, error: uploadError } = await safeUpload('gallery', fileName, compressed, {
+			contentType: 'image/webp'
+		});
 
-		if (uploadError) throw uploadError;
+		if (uploadError) {
+			console.error(`❌ Upload failed for ${fileName}:`, uploadError);
+			throw uploadError;
+		}
 
+		console.log(`[${i+1}/${files.length}] Accessing URL...`);
 		const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(fileName);
+		const publicUrlWithCache = `${urlData.publicUrl}?t=${Date.now()}`;
+
+		console.log(`[${i+1}/${files.length}] Saving to DB...`);
 		const { error: dbError } = await supabase.from('gallery').insert([{
-			url: urlData.publicUrl,
+			url: publicUrlWithCache,
 			caption: ''
 		}]);
 
-		if (dbError) throw dbError;
+		if (dbError) {
+			console.error(`❌ DB insert failed:`, dbError);
+			throw dbError;
+		}
+		console.log(`✅ Image ${i+1} done`);
 	}
 	
 	// Refresh gallery
+	console.log('🔄 Refreshing local gallery state...');
 	const { data } = await supabase.from('gallery').select('*').order('created_at', { ascending: false });
 	if (data) db.gallery = data;
+	console.log('🏁 All uploads complete');
 }
 
 export async function deleteGalleryImage(id, url) {
@@ -111,46 +203,48 @@ export async function deleteGalleryImage(id, url) {
  * @param {File} file 
  */
 export async function updateQRIS(file) {
-	const compressed = await compressImage(file);
-	const fileName = `settings-qris-${Date.now()}.jpg`;
+	const compressed = await compressImage(file, 'proof');
+	const fileName = `settings-qris-${Date.now()}.webp`;
 	
-	const { error: uploadError } = await safeUpload('gallery', fileName, compressed);
+	const { error: uploadError } = await safeUpload('gallery', `settings/${fileName}`, compressed, {
+		contentType: 'image/webp'
+	});
 
 	if (uploadError) throw uploadError;
 
-	const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(fileName);
+	const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(`settings/${fileName}`);
+	const publicUrlWithCache = `${urlData.publicUrl}?t=${Date.now()}`;
 	
 	const { error: dbError } = await supabase
 		.from('settings')
-		.update({ qris_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+		.update({ qris_url: publicUrlWithCache, updated_at: new Date().toISOString() })
 		.eq('id', 'global');
 
 	if (dbError) throw dbError;
 	
-	db.settings.qris_url = urlData.publicUrl;
+	db.settings.qris_url = publicUrlWithCache;
 }
 
 export async function uploadPaymentProof(participantId, file) {
-	const fileExt = file.name.split('.').pop();
-	const fileName = `proof-${participantId}-${Date.now()}.${fileExt}`;
-	const filePath = `payments/${fileName}`;
+	const fileName = `proof-${participantId}-${Date.now()}.webp`;
 
 	// 1. Kompresi gambar dulu
-	const compressedBlob = await compressImage(file);
+	const compressedBlob = await compressImage(file, 'proof');
 
-	// 2. Upload ke Storage
-	const { data: sData, error: sError } = await safeUpload('gallery', filePath, compressedBlob, {
-		contentType: 'image/jpeg'
+	// 2. Upload ke Storage - BUCKET: proofs, FOLDER: payment
+	const filePath = `payment/${fileName}`;
+	const { data: sData, error: sError } = await safeUpload('proofs', filePath, compressedBlob, {
+		contentType: 'image/webp'
 	});
 
 	if (sError) throw sError;
 
-	// 2. Ambil URL
+	// 2. Ambil URL (dari bucket proofs/payment)
 	const { data: { publicUrl } } = supabase.storage
-		.from('gallery')
+		.from('proofs')
 		.getPublicUrl(filePath);
 
-	// 3. Update Participant table
+	// 3. Update DB
 	const { error: dbError } = await supabase
 		.from('participants')
 		.update({ payment_proof_url: publicUrl })
@@ -158,8 +252,8 @@ export async function uploadPaymentProof(participantId, file) {
 
 	if (dbError) throw dbError;
 
-	// 4. Update Local State
-	const p = db.participants.find(p => p.id === participantId);
+	// Sync local state
+	const p = db.participants.find((p) => p.id === participantId);
 	if (p) p.payment_proof_url = publicUrl;
 	
 	return publicUrl;
@@ -170,16 +264,25 @@ export async function uploadPaymentProof(participantId, file) {
  * @param {File} file 
  * @returns {Promise<Blob>}
  */
-async function compressImage(file) {
-	return new Promise((resolve) => {
+/**
+ * Image Compression with WebP & High-Performance Canvas
+ * @param {File} file 
+ * @param {'gallery' | 'proof'} type 
+ */
+async function compressImage(file, type = 'gallery') {
+	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
 		reader.readAsDataURL(file);
+		reader.onerror = (e) => reject(e);
 		reader.onload = (event) => {
 			const img = new Image();
 			img.src = event.target.result;
 			img.onload = () => {
 				const canvas = document.createElement('canvas');
-				const MAX_WIDTH = 800; // Optimal untuk bukti transfer
+				
+				const MAX_WIDTH = type === 'gallery' ? 1200 : 800;
+				const QUALITY = type === 'gallery' ? 0.8 : 0.6;
+				
 				let width = img.width;
 				let height = img.height;
 
@@ -191,11 +294,22 @@ async function compressImage(file) {
 				canvas.width = width;
 				canvas.height = height;
 				const ctx = canvas.getContext('2d');
+				
+				ctx.imageSmoothingEnabled = true;
+				ctx.imageSmoothingQuality = 'high';
 				ctx.drawImage(img, 0, 0, width, height);
 
 				canvas.toBlob((blob) => {
-					resolve(blob);
-				}, 'image/jpeg', 0.7); // Kualitas 70% sudah sangat cukup
+					if (!blob) {
+						reject(new Error('Compression failed'));
+						return;
+					}
+					// Convert Blob to File for more robust upload handling
+					const newFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".webp", {
+						type: 'image/webp'
+					});
+					resolve(newFile);
+				}, 'image/webp', QUALITY);
 			};
 		};
 	});
@@ -216,7 +330,23 @@ export function getParticipantByTicket(ticketId) {
 	return db.participants.find((p) => p.ticket_id === ticketId.toUpperCase());
 }
 
+let lastRSVP = 0;
 export async function addParticipant(sessionId, name, needsRacket) {
+	// 1. Rate Limiting (prevent spam)
+	const now = Date.now();
+	if (now - lastRSVP < 2000) {
+		console.warn('Rate limit exceeded');
+		return null;
+	}
+	lastRSVP = now;
+
+	// 2. Client-side Duplicate Check (Double safety)
+	const isDuplicate = db.participants.some(p => p.session_id === sessionId && p.name.toLowerCase() === name.toLowerCase());
+	if (isDuplicate) {
+		console.error('Safe guard: Participant already exists');
+		return null;
+	}
+
 	const { data, error } = await supabase
 		.from('participants')
 		.insert([{ session_id: sessionId, name, needs_racket: needsRacket, has_paid: false }])
@@ -402,4 +532,53 @@ export async function deleteSession(sessionId) {
 	} else {
 		console.error("Gagal menghapus sesi:", error);
 	}
+}
+/**
+ * UX Helpers: Confetti & Haptics
+ */
+export async function triggerConfetti() {
+	try {
+		const confetti = (await import('https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/+esm')).default;
+		confetti({
+			particleCount: 150,
+			spread: 70,
+			origin: { y: 0.6 },
+			colors: ['#15335E', '#34C759', '#FFFFFF']
+		});
+	} catch (e) {
+		console.warn('Confetti failed to load');
+	}
+}
+
+export function triggerHaptic(type = 'medium') {
+	if (!window.navigator.vibrate) return;
+	
+	const patterns = {
+		light: 10,
+		medium: 20,
+		error: [50, 30, 50],
+		success: [20, 10, 20]
+	};
+	
+	window.navigator.vibrate(patterns[type] || 20);
+}
+
+/**
+ * Feature: Add to Calendar
+ */
+export function addToCalendar(session) {
+	if (!session) return;
+	
+	const date = session.date.replace(/-/g, '');
+	const startTime = (session.time || "19:00").split(' - ')[0].replace(':', '') + '00';
+	const endTime = (session.time || "21:00").split(' - ')[1]?.replace(':', '') + '00' || '210000';
+	
+	const title = encodeURIComponent(`Badminton Session: ${session.title}`);
+	const details = encodeURIComponent(`Badminton session at Axton Hall. Subtitle: ${session.subtitle}`);
+	const location = encodeURIComponent('Axton Badminton Hall, Botania 1, Batam');
+	
+	// Create Google Calendar Link
+	const gCalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}&dates=${date}T${startTime}/${date}T${endTime}`;
+	
+	window.open(gCalUrl, '_blank');
 }
