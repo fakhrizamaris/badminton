@@ -50,13 +50,23 @@
 	}
 
 	function saveMapsUrl() {
-		// Jika user paste seluruh tag <iframe>, kita ambil bagian src-nya saja
-		const match = mapsUrlInput.match(/src="([^"]+)"/);
-		if (match && match[1]) {
-			appConfig.maps_embed_url = match[1];
+		const trimmedInput = mapsUrlInput.trim();
+		
+		// Cek jika input adalah tag <iframe>
+		const iframeMatch = trimmedInput.match(/src="([^"]+)"/);
+		// Cek jika input adalah koordinat (Lat, Long)
+		const coordMatch = trimmedInput.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+
+		if (iframeMatch && iframeMatch[1]) {
+			appConfig.maps_embed_url = iframeMatch[1];
+		} else if (coordMatch) {
+			const lat = coordMatch[1];
+			const lng = coordMatch[2];
+			// Buat URL embed dari koordinat
+			appConfig.maps_embed_url = `https://maps.google.com/maps?q=${lat},${lng}&z=15&output=embed`;
 		} else {
-			// Jika user paste link-nya saja
-			appConfig.maps_embed_url = mapsUrlInput;
+			// Jika input adalah link biasa
+			appConfig.maps_embed_url = trimmedInput;
 		}
 		showMapsConfig = false;
 	}
