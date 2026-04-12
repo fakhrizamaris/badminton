@@ -13,7 +13,10 @@
 		calcRacketShare,
 		db,
 		uploadGalleryImages,
-		deleteGalleryImage
+		deleteGalleryImage,
+		updateQRIS,
+		deleteSession,
+		isSessionPassed
 	} from '$lib/data/store.svelte.js';
 	import {
 		Plus,
@@ -31,20 +34,67 @@
 		Map,
 		LogOut,
 		Image as ImageIcon,
-		Upload
+		Upload,
+		QrCode
 	} from 'lucide-svelte';
 
 	import { enhance } from '$app/forms';
 
 	// ── Create Session Form ───────────────────────────────────────
 	let newTitle = $state('');
-	let newDate = $state('');
-	let newTime = $state('7PM');
+	let newDate = $state(new Date().toISOString().split('T')[0]);
+	let newTime = $state('19:00'); // Default 7 PM
+	let newEndTime = $state('21:00'); // Default 2 hours later
 	let newSubtitle = $state('Mixed Levels');
 	let newCourts = $state(1);
 	let newRackets = $state(0);
 	let formError = $state('');
 	let showCreateForm = $state(false);
+	let isUploadingQRIS = $state(false);
+	let qrisSuccess = $state(false);
+
+	// ── Payment Verification Modal ─────────────────────────────────
+	let selectedVerification = $state(null); // participant object
+	let verificationSession = $state(null);  // current session
+	let verificationCost = $state(0);
+
+	function openVerification(participant, session, cost) {
+		selectedVerification = participant;
+		verificationSession = session;
+		verificationCost = cost;
+	}
+
+	function closeVerification() {
+		selectedVerification = null;
+		verificationSession = null;
+		verificationCost = 0;
+	}
+
+	async function handleVerifyPayment() {
+		if (selectedVerification && !selectedVerification.has_paid) {
+			await togglePaid(selectedVerification.id);
+			selectedVerification.has_paid = true;
+		}
+		closeVerification();
+	}
+
+	async function handleQRISUpload(e) {
+		const file = e.target.files[0];
+		if (!file) return;
+
+		isUploadingQRIS = true;
+		qrisSuccess = false;
+		try {
+			await updateQRIS(file);
+			qrisSuccess = true;
+			setTimeout(() => { qrisSuccess = false; }, 3000);
+		} catch (err) {
+			console.error('QRIS upload failed:', err);
+			alert('Failed to upload QRIS. Check console.');
+		} finally {
+			isUploadingQRIS = false;
+		}
+	}
 
 	// ── Maps Config ───────────────────────────────────────────────
 	let showMapsConfig = $state(false);
@@ -107,10 +157,15 @@
 			formError = 'Date is required';
 			return;
 		}
-		await createSession(newTitle.trim(), newDate, newTime, newSubtitle, newCourts, newRackets);
+		
+		const finalTime = newEndTime ? `${newTime} - ${newEndTime}` : newTime;
+		
+		await createSession(newTitle.trim(), newDate, finalTime, newSubtitle, newCourts, newRackets);
+		
 		newTitle = '';
-		newDate = '';
-		newTime = '7PM';
+		newDate = new Date().toISOString().split('T')[0];
+		newTime = '19:00';
+		newEndTime = '21:00';
 		newSubtitle = 'Mixed Levels';
 		newCourts = 1;
 		newRackets = 0;
@@ -219,14 +274,23 @@
 								class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
 							/>
 						</div>
+					<div class="grid grid-cols-2 gap-3">
 						<div>
-							<label for="session-time" class="block text-xs font-medium text-text-secondary mb-1.5">Time</label>
+							<label for="session-time" class="block text-xs font-medium text-text-secondary mb-1.5">Starting Time</label>
 							<input
 								id="session-time"
-								type="text"
+								type="time"
 								bind:value={newTime}
-								placeholder="e.g. 7PM"
-								class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
+								class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
+							/>
+						</div>
+						<div>
+							<label for="session-end-time" class="block text-xs font-medium text-text-secondary mb-1.5">Ending Time</label>
+							<input
+								id="session-end-time"
+								type="time"
+								bind:value={newEndTime}
+								class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
 							/>
 						</div>
 					</div>
@@ -312,6 +376,50 @@
 			</div>
 		{/if}
 
+		<!-- Settings & QRIS Module Here -->
+		<div class="bg-surface rounded-3xl border border-border/50 p-6 shadow-sm mt-5">
+			<div class="flex items-center gap-3 mb-5">
+				<div class="w-10 h-10 rounded-xl bg-navy/5 flex items-center justify-center text-navy">
+					<QrCode size={20} />
+				</div>
+				<div>
+							<h3 class="text-sm font-bold text-text-primary">Payment Settings</h3>
+							<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-semibold">Update QRIS Code</p>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						<div class="flex items-center gap-4 p-4 bg-bg rounded-2xl border border-border/50">
+							<div class="w-16 h-16 bg-white rounded-lg border border-border/50 flex items-center justify-center overflow-hidden">
+								{#if db.settings?.qris_url}
+									<img src={db.settings.qris_url} alt="QRIS" class="w-full h-full object-contain" />
+								{:else}
+									<QrCode size={24} class="text-text-tertiary/20" />
+								{/if}
+							</div>
+							<div class="flex-1">
+								<p class="text-xs font-bold text-text-primary mb-1">Main QRIS Code</p>
+								<p class="text-[10px] text-text-secondary">This code will be shown when users pay fees.</p>
+							</div>
+						</div>
+
+						<label class="relative flex items-center justify-center gap-2 p-3.5 bg-navy text-white text-xs font-bold rounded-2xl cursor-pointer hover:bg-navy/90 transition-all active:scale-95 shadow-md">
+							<input type="file" accept="image/*" class="hidden" onchange={handleQRISUpload} disabled={isUploadingQRIS} />
+							{#if isUploadingQRIS}
+								<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+								<span>UPDATING...</span>
+							{:else if qrisSuccess}
+								<Check size={16} />
+								<span>QRIS UPDATED!</span>
+							{:else}
+								<Upload size={16} />
+								<span>UPDATE QRIS IMAGE</span>
+							{/if}
+						</label>
+					</div>
+				</div>
+			</div>
+
 		<!-- Gallery Management Section -->
 		<section class="mb-10 animate-fade-in-up" style="animation-delay: 50ms">
 			<div class="flex items-center justify-between mb-4">
@@ -393,14 +501,18 @@
 								<div class="flex-1 min-w-0">
 									<div class="flex items-center gap-2 mb-1">
 										<h3 class="text-sm font-semibold text-text-primary truncate">{session.title}</h3>
-										{#if session.is_locked}
+										{#if isSessionPassed(session)}
+											<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary text-[9px] font-bold">
+												✓ ENDED
+											</span>
+										{:else if session.is_locked}
 											<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[9px] font-bold">
 												<Lock size={8} />
 												LOCKED
 											</span>
 										{/if}
 									</div>
-									<div class="flex items-center gap-3 text-xs text-text-tertiary">
+									<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-tertiary mt-1">
 										<span class="flex items-center gap-1">
 											<Calendar size={11} />
 											{formatDate(session.date)} · {session.time}
@@ -410,17 +522,25 @@
 											{sessionParticipants.length} ({renters} rent)
 										</span>
 									</div>
-									<div class="flex items-center gap-3 mt-1 text-[10px] text-text-tertiary">
+									<div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[10px] text-text-tertiary">
 										<span>{session.court_count} court{session.court_count > 1 ? 's' : ''}</span>
 										<span>·</span>
 										<span>{session.racket_count} racket{session.racket_count > 1 ? 's' : ''}</span>
 										<span>·</span>
-										<span class="font-medium">{formatCurrency(total)}</span>
+										<span class="font-medium text-navy/70">{formatCurrency(total)}</span>
 									</div>
 								</div>
 
 								<!-- Actions -->
 								<div class="flex items-center gap-2">
+									<button
+										onclick={async () => { if (confirm(`Delete "${session.title}"? This will also remove all participants. This cannot be undone.`)) { await deleteSession(session.id); } }}
+										class="w-9 h-9 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-90"
+										title="Delete Session"
+									>
+										<Trash2 size={16} />
+									</button>
+
 									<button
 										onclick={async () => await toggleLock(session.id)}
 										class="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-90 {session.is_locked ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}"
@@ -468,17 +588,16 @@
 
 												<!-- Name & Proof -->
 												<div class="flex-1 min-w-0">
-													<div class="flex items-center gap-2">
-														<p class="text-sm font-medium text-text-primary truncate">{participant.name}</p>
+													<div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+														<p class="text-sm font-medium text-text-primary truncate max-w-[100px] sm:max-w-none">{participant.name}</p>
 														{#if participant.payment_proof_url}
-															<a 
-																href={participant.payment_proof_url} 
-																target="_blank" 
-																class="flex-shrink-0 w-6 h-6 rounded-md overflow-hidden border border-border/50 hover:ring-2 hover:ring-navy/20 transition-all shadow-sm"
-																title="View Payment Proof"
+															<button 
+																onclick={() => openVerification(participant, session, cost)}
+																class="flex items-center gap-1 px-1.5 py-0.5 bg-navy/5 text-navy text-[9px] font-bold rounded-lg hover:bg-navy/10 transition-colors border border-navy/10 whitespace-nowrap"
 															>
-																<img src={participant.payment_proof_url} alt="Proof" class="w-full h-full object-cover" />
-															</a>
+																<ImageIcon size={10} />
+																<span class="hidden xs:inline">Review</span> Proof
+															</button>
 														{/if}
 													</div>
 													<div class="flex items-center gap-2 mt-0.5">
@@ -525,3 +644,70 @@
 			{/if}
 		</section>
 	</div>
+
+	<!-- Payment Verification Modal -->
+	{#if selectedVerification}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm animate-fade-in flex flex-col justify-end sm:justify-center p-4">
+			<div class="bg-surface w-full max-w-md mx-auto rounded-3xl shadow-2xl overflow-hidden animate-slide-up sm:animate-scale-in" onclick={(e) => e.stopPropagation()}>
+				<!-- Header -->
+				<div class="p-4 border-b border-border/50 flex justify-between items-center bg-bg/50">
+					<h3 class="font-bold text-text-primary flex items-center gap-2">
+						Payment Verification
+					</h3>
+					<button onclick={closeVerification} class="w-8 h-8 flex items-center justify-center rounded-full bg-surface border border-border/50 shadow-sm text-text-secondary hover:text-text-primary transition-colors">
+						<Plus size={16} class="rotate-45" />
+					</button>
+				</div>
+
+				<!-- Content -->
+				<div class="p-5 overflow-y-auto max-h-[70vh]">
+					<div class="aspect-[3/4] bg-bg rounded-2xl border border-border/50 overflow-hidden mb-5">
+						<img 
+							src={selectedVerification.payment_proof_url} 
+							alt="Payment Proof" 
+							class="w-full h-full object-contain"
+							onerror={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = 'https://placehold.co/600x800/f3f4f6/a1a1aa?text=Image+Not+Found+(404)'; }}
+						/>
+					</div>
+					
+					<div class="bg-bg rounded-2xl p-4 border border-border/50 space-y-3">
+						<div class="flex justify-between items-center">
+							<span class="text-xs text-text-secondary">Participant</span>
+							<span class="text-sm font-bold text-text-primary">{selectedVerification.name}</span>
+						</div>
+						<div class="flex justify-between items-center">
+							<span class="text-xs text-text-secondary">Expected Amount</span>
+							<span class="text-base font-black text-navy">{formatCurrency(verificationCost)}</span>
+						</div>
+						<div class="pt-3 mt-3 border-t border-border/50 flex justify-between items-center flex-wrap gap-2">
+							<span class="px-2.5 py-1 rounded-md bg-white border border-border/50 text-[10px] font-bold text-text-secondary">
+								{selectedVerification.needs_racket ? '🎾 Racket Rent (+20K)' : '🏸 Own Racket'}
+							</span>
+							<span class="px-2.5 py-1 rounded-md bg-white border border-border/50 text-[10px] font-bold text-text-secondary">
+								Status: {selectedVerification.has_paid ? 'PAID' : 'PENDING'}
+							</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Actions -->
+				<div class="p-4 bg-bg/50 border-t border-border/50 grid grid-cols-2 gap-3">
+					<button 
+						onclick={async () => { await togglePaid(selectedVerification.id); selectedVerification.has_paid = !selectedVerification.has_paid; }}
+						class="py-3 rounded-2xl font-bold text-sm transition-all shadow-sm {selectedVerification.has_paid ? 'bg-danger/10 text-danger border border-danger/20 hover:bg-danger hover:text-white' : 'bg-surface text-text-primary border border-border hover:bg-bg'}"
+					>
+						{selectedVerification.has_paid ? 'Revoke Payment' : 'Reject / Ignore'}
+					</button>
+					<button 
+						onclick={handleVerifyPayment}
+						class="py-3 rounded-2xl font-bold text-sm bg-navy text-white transition-all shadow-md active:scale-95 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+						disabled={selectedVerification.has_paid}
+					>
+						{selectedVerification.has_paid ? 'Already Verified' : 'Verify & Approve'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}

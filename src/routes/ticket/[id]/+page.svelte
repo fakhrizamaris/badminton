@@ -128,8 +128,8 @@
 					<span class="text-4xl font-black text-navy">{participant.name.charAt(0).toUpperCase()}</span>
 				</div>
 
-				<h3 class="text-2xl font-black text-text-primary mb-1 text-center leading-none">{participant.name}</h3>
-				<p class="text-text-tertiary text-xs font-semibold mb-10">#{participant.ticket_id}</p>
+				<h3 class="text-xl sm:text-2xl font-black text-text-primary mb-1 text-center leading-tight break-words px-4 w-full">{participant.name}</h3>
+				<p class="text-text-tertiary text-[10px] font-semibold mb-6 sm:mb-10">#{participant.ticket_id}</p>
 
 				<div class="grid grid-cols-2 gap-x-10 gap-y-8 w-full">
 					<div class="text-left">

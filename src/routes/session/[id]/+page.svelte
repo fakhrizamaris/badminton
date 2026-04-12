@@ -1,9 +1,9 @@
 <script>
 	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 	import {
 		getSession,
 		getParticipants,
-		getParticipantsSync,
 		addParticipant,
 		markPaid,
 		calcCourtShare,
@@ -11,8 +11,10 @@
 		calcTotalCost,
 		calcPlayerCost,
 		isRSVPOpen,
+		initDB,
 		db,
-		uploadPaymentProof
+		uploadPaymentProof,
+		isSessionPassed
 	} from '$lib/data/store.svelte.js';
 	import {
 		ArrowLeft,
@@ -28,9 +30,7 @@
 		X,
 		Info,
 		Feather,
-		Upload,
-		Image as ImageIcon,
-		Trash2
+		Upload
 	} from 'lucide-svelte';
 
 	// Reactive session data
@@ -46,6 +46,9 @@
 	// QRIS modal state
 	let showQrisModal = $state(false);
 	let payingParticipantId = $state(null);
+	let payingNeedsRacket = $state(false);
+	let isUploadingProof = $state(false);
+	let proofSuccess = $state(false);
 	let isHomePage = $derived(currentPath === "/");
 	let myParticipantId = $state(null);
 
@@ -245,8 +248,8 @@
 				<ArrowLeft size={18} class="text-text-primary" />
 			</a>
 			<div class="flex-1 min-w-0">
-				<h1 class="text-lg font-bold text-text-primary truncate">{session.title}</h1>
-				<p class="text-xs text-text-secondary">{formatDate(session.date)} · {session.time}</p>
+				<h1 class="text-base sm:text-lg font-bold text-text-primary truncate">{session.title}</h1>
+				<p class="text-[10px] sm:text-xs text-text-secondary">{formatDate(session.date)} · {session.time}</p>
 				
 				<!-- RSVP Deadline Status -->
 				{#if !session.is_locked}
@@ -268,6 +271,19 @@
 				</span>
 			{/if}
 		</header>
+
+		<!-- Session Ended Banner -->
+		{#if isSessionPassed(session)}
+			<div class="bg-text-tertiary/5 border border-border/50 rounded-2xl p-4 mb-5 flex items-center gap-3 animate-fade-in">
+				<div class="w-10 h-10 rounded-xl bg-text-tertiary/10 flex items-center justify-center flex-shrink-0">
+					<Check size={20} class="text-text-tertiary" />
+				</div>
+				<div>
+					<p class="text-sm font-bold text-text-secondary">Session Ended</p>
+					<p class="text-[11px] text-text-tertiary">This session has concluded. You can still view the details below.</p>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Session Info Cards -->
 		<div class="grid grid-cols-3 gap-3 mb-5 animate-fade-in-up" style="animation-delay: 80ms">
@@ -318,12 +334,12 @@
 					</div>
 					
 					<div class="flex items-end justify-between relative z-10">
-						<div>
+						<div class="min-w-0">
 							<p class="text-[10px] font-semibold text-white/40 uppercase tracking-wider mb-1">Registered Player</p>
-							<h4 class="text-white text-xl font-bold leading-none tracking-tight">{myRegistration.name}</h4>
+							<h4 class="text-white text-lg sm:text-xl font-bold leading-none tracking-tight truncate">{myRegistration?.name || 'Loading...'}</h4>
 							<div class="flex items-center gap-2 mt-2">
 								<span class="text-[10px] text-white/60 bg-white/5 px-2 py-0.5 rounded-md border border-white/5 font-mono">
-									Ticket ID: {myRegistration.ticket_id || '---'}
+									Ticket ID: {myRegistration?.ticket_id || '---'}
 								</span>
 							</div>
 						</div>
@@ -380,7 +396,7 @@
 						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1">
 							<Feather size={12} /> Own Racket
 						</p>
-						<p class="text-xl font-bold {session.is_locked ? 'text-white' : 'text-text-primary'} tracking-tight">
+						<p class="text-lg sm:text-xl font-bold {session.is_locked ? 'text-white' : 'text-text-primary'} tracking-tight">
 							{formatCurrency(costOwnRacket)}
 						</p>
 						<p class="text-[10px] {session.is_locked ? 'text-white/40' : 'text-text-tertiary'} mt-0.5">
@@ -393,7 +409,7 @@
 						<p class="text-[10px] font-medium {session.is_locked ? 'text-white/50' : 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1">
 							<Zap size={12} class={session.is_locked ? 'text-white/50' : 'text-navy'} /> Rent Racket
 						</p>
-						<p class="text-xl font-bold {session.is_locked ? 'text-white' : 'text-navy'} tracking-tight">
+						<p class="text-lg sm:text-xl font-bold {session.is_locked ? 'text-white' : 'text-navy'} tracking-tight">
 							{formatCurrency(costRentRacket)}
 						</p>
 						<p class="text-[10px] {session.is_locked ? 'text-white/40' : 'text-text-tertiary'} mt-0.5">
@@ -402,47 +418,29 @@
 					</div>
 				</div>
 
-				<!-- Breakdown -->
+				<!-- Simplified Breakdown -->
 				<div class="pt-3 border-t {session.is_locked ? 'border-white/10' : 'border-border/50'} space-y-1.5">
-					<div class="flex justify-between text-xs">
+					<div class="flex justify-between text-[10px] uppercase tracking-wider font-bold">
 						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
-							{session.court_count} court{session.court_count > 1 ? 's' : ''} × Rp 77.000
+							Total Court Fees
 						</span>
 						<span class={session.is_locked ? 'text-white/60' : 'text-text-secondary'}>
 							{formatCurrency(session.court_count * 77000)}
 						</span>
 					</div>
-					<div class="flex justify-between text-xs">
+					<div class="flex justify-between text-[10px] uppercase tracking-wider font-bold">
 						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
-							Court share ÷ {Math.max(1, sessionParticipants.length)} player{sessionParticipants.length !== 1 ? 's' : ''}
-						</span>
-						<span class="{session.is_locked ? 'text-white/60' : 'text-text-secondary'} font-medium">
-							{formatCurrency(courtShare)}
-						</span>
-					</div>
-					<div class="flex justify-between text-xs">
-						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
-							{session.racket_count} racket{session.racket_count > 1 ? 's' : ''} × Rp 20.000
+							Total Racket Rental
 						</span>
 						<span class={session.is_locked ? 'text-white/60' : 'text-text-secondary'}>
 							{formatCurrency(session.racket_count * 20000)}
 						</span>
 					</div>
-					{#if rentersCount > 0}
-						<div class="flex justify-between text-xs">
-							<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
-								Racket share ÷ {rentersCount} renter{rentersCount !== 1 ? 's' : ''}
-							</span>
-							<span class="{session.is_locked ? 'text-white/60' : 'text-text-secondary'} font-medium">
-								+{formatCurrency(racketShare)}
-							</span>
-						</div>
-					{/if}
-					<div class="flex justify-between text-xs font-semibold pt-1.5 border-t {session.is_locked ? 'border-white/10' : 'border-border/30'}">
+					<div class="flex justify-between text-xs font-black pt-2 border-t {session.is_locked ? 'border-white/10' : 'border-border/30'}">
 						<span class={session.is_locked ? 'text-white/50' : 'text-text-tertiary'}>
-							Total session cost
+							GRAND TOTAL
 						</span>
-						<span class={session.is_locked ? 'text-white/80' : 'text-text-primary'}>
+						<span class={session.is_locked ? 'text-white' : 'text-navy'}>
 							{formatCurrency(totalCost)}
 						</span>
 					</div>
@@ -482,8 +480,8 @@
 			{/if}
 		</div>
 
-		<!-- RSVP Form (only if not locked) -->
-		{#if !session.is_locked}
+		<!-- RSVP Form (only if not locked and not ended) -->
+		{#if !session.is_locked && !isSessionPassed(session)}
 			<div class="bg-surface rounded-3xl border border-border/50 shadow-sm p-5 mb-5 animate-fade-in-up" style="animation-delay: 240ms">
 				<div class="flex items-center justify-between mb-4">
 					<h3 class="text-sm font-bold text-text-primary">Join this Session</h3>
@@ -621,10 +619,10 @@
 			{:else}
 				<div class="bg-surface rounded-3xl border border-border/50 shadow-sm overflow-hidden divide-y divide-border/50">
 					{#each sessionParticipants as participant (participant.id)}
-						{@const playerCost = calcPlayerCost(session, sessionParticipants, participant.needs_racket)}
+						{@const playerCost = calcPlayerCost(session, sessionParticipants, participant?.needs_racket ?? false)}
 						<div class="flex items-center gap-3 px-4 py-3.5">
 							<!-- Avatar Circle -->
-							<div class="w-9 h-9 rounded-full {participant.needs_racket ? 'bg-navy/10' : 'bg-navy/5'} flex items-center justify-center flex-shrink-0">
+							<div class="w-9 h-9 rounded-full {participant?.needs_racket ? 'bg-navy/10' : 'bg-navy/5'} flex items-center justify-center flex-shrink-0">
 								<span class="text-xs font-bold text-navy">
 									{participant?.name?.charAt(0)?.toUpperCase() || '?'}
 								</span>
@@ -634,7 +632,7 @@
 							<div class="flex-1 min-w-0">
 								<p class="text-sm font-medium text-text-primary truncate">{participant?.name || 'Unknown'}</p>
 								<div class="flex items-center gap-2 mt-0.5">
-									{#if participant.needs_racket}
+									{#if participant?.needs_racket}
 										<span class="text-[10px] text-navy/60 flex items-center gap-1"><Zap size={10} /> Rent racket</span>
 									{:else}
 										<span class="text-[10px] text-text-tertiary flex items-center gap-1"><Feather size={10} /> Own racket</span>
@@ -644,15 +642,15 @@
 							</div>
 
 							<!-- Payment Status -->
-							{#if session.is_locked}
-								{#if participant.has_paid}
+							{#if session?.is_locked}
+								{#if participant?.has_paid}
 									<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-success/10 text-success text-[11px] font-semibold">
 										<Check size={12} />
 										Paid
 									</span>
 								{:else}
 									<button
-										onclick={() => openPayment(participant.id, participant.needs_racket)}
+										onclick={() => openPayment(participant?.id, participant?.needs_racket ?? false)}
 										class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-danger/10 text-danger text-[11px] font-semibold hover:bg-danger/20 transition-colors active:scale-95"
 									>
 										<Clock size={12} />
@@ -707,13 +705,24 @@
 					</div>
 
 					<div class="bg-bg rounded-2xl border border-border/50 p-6 text-center mb-6">
-						<!-- QRIS Placeholder -->
-						<div class="aspect-square bg-white rounded-2xl flex flex-col items-center justify-center p-8 border border-border/50 mb-4 shadow-inner">
-							<QrCode size={48} class="text-text-tertiary mb-3 opacity-20" />
-							<p class="text-[10px] text-text-tertiary text-center uppercase tracking-widest font-bold">
-								QRIS CODE PLACEHOLDER
+						{#if db.settings?.qris_url}
+							<!-- Dynamic QRIS -->
+							<div class="aspect-square bg-white rounded-2xl flex flex-col items-center justify-center p-4 border border-border/50 mb-4 shadow-inner overflow-hidden">
+								<img src={db.settings.qris_url} alt="QRIS Code" class="w-full h-full object-contain" />
+							</div>
+							<p class="text-[10px] text-text-secondary text-center uppercase tracking-widest font-bold mb-4">
+								Scan QRIS untuk Bayar
 							</p>
-						</div>
+						{:else}
+							<!-- Fallback Message -->
+							<div class="aspect-square bg-white rounded-2xl flex flex-col items-center justify-center p-8 border border-border/50 mb-4 shadow-inner">
+								<QrCode size={48} class="text-navy/20 mb-3" />
+								<p class="text-[11px] text-text-secondary text-center font-medium leading-relaxed">
+									Gambar QRIS menyusul.<br/>
+									Silakan <strong>TF ke GoPay</strong> saja langsung ke nomor WhatsApp <strong>Zulkifli</strong>.
+								</p>
+							</div>
+						{/if}
 
 						<!-- Upload Proof Section -->
 						<div class="pt-4 border-t border-border/50">
@@ -808,7 +817,7 @@
 							<div class="flex-1 bg-black rounded-full" style="height: {Math.random() * 100}%"></div>
 						{/each}
 					</div>
-					<p class="text-[9px] font-mono text-text-tertiary uppercase tracking-widest">#{myRegistration.id.slice(0, 18).toUpperCase()}</p>
+					<p class="text-[9px] font-mono text-text-tertiary uppercase tracking-widest">#{myRegistration?.id?.slice(0, 18).toUpperCase()}</p>
 					
 					<button 
 						onclick={() => (showReceipt = false)}

@@ -1,7 +1,14 @@
 <script>
-	import { db, getParticipants, appConfig } from '$lib/data/store.svelte.js';
+	import { onMount } from 'svelte';
+	import { db, getParticipants, appConfig, isSessionPassed } from '$lib/data/store.svelte.js';
 	import { MapPin, Calendar, Users, ChevronRight, Lock, Phone, Mail } from 'lucide-svelte';
 	import heroLogo from '$lib/assets/logo.png';
+
+	let myTickets = $state([]);
+
+	onMount(() => {
+		myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+	});
 
 	/**
 	 * Format date for schedule cards (e.g. "Fri, Apr 18")
@@ -75,32 +82,66 @@
 </svelte:head>
 
 <!-- Top Navigation Bar -->
-<nav class="sticky top-0 z-40 px-4 pt-4 pb-2 animate-fade-in">
-	<div class="max-w-5xl mx-auto bg-navy rounded-full px-2 py-2 flex items-center justify-between shadow-lg shadow-navy/25">
-		<div class="flex items-center gap-1">
-			<a href="/" onclick={(e) => scrollToSection(e, null)} class="px-4 py-2 text-white/90 text-sm font-medium rounded-full hover:bg-white/10 transition-colors">
+<nav class="sticky top-0 z-40 px-3 sm:px-4 pt-4 pb-2 animate-fade-in">
+	<div class="max-w-5xl mx-auto bg-navy rounded-full px-1.5 sm:px-2 py-1.5 sm:py-2 flex items-center justify-between shadow-lg shadow-navy/25">
+		<div class="flex items-center gap-0.5 sm:gap-1 overflow-x-auto scrollbar-hide">
+			<a href="/" onclick={(e) => scrollToSection(e, null)} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap">
 				Home
 			</a>
-			<a href="#schedule" onclick={(e) => scrollToSection(e, 'schedule')} class="px-4 py-2 text-white/90 text-sm font-medium rounded-full hover:bg-white/10 transition-colors">
+			<a href="#schedule" onclick={(e) => scrollToSection(e, 'schedule')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap">
 				Schedule
 			</a>
-			<a href="#gallery" onclick={(e) => scrollToSection(e, 'gallery')} class="px-4 py-2 text-white/90 text-sm font-medium rounded-full hover:bg-white/10 transition-colors">
+			<a href="#gallery" onclick={(e) => scrollToSection(e, 'gallery')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap hidden xs:block">
 				Gallery
 			</a>
-			<a href="#location" onclick={(e) => scrollToSection(e, 'location')} class="px-4 py-2 text-white/90 text-sm font-medium rounded-full hover:bg-white/10 transition-colors hidden sm:block">
+			<a href="#location" onclick={(e) => scrollToSection(e, 'location')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors hidden sm:block">
 				Location
 			</a>
-			<a href="#faq" onclick={(e) => scrollToSection(e, 'faq')} class="px-4 py-2 text-white/90 text-sm font-medium rounded-full hover:bg-white/10 transition-colors hidden md:block">
+			<a href="#faq" onclick={(e) => scrollToSection(e, 'faq')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors hidden md:block">
 				FAQ
 			</a>
-			<a href="#contact" onclick={(e) => scrollToSection(e, 'contact')} class="px-4 py-2 text-white/90 text-sm font-medium rounded-full hover:bg-white/10 transition-colors">
+			<a href="#contact" onclick={(e) => scrollToSection(e, 'contact')} class="px-2 sm:px-4 py-1.5 sm:py-2 text-white/90 text-[11px] sm:text-sm font-medium rounded-full hover:bg-white/10 transition-colors whitespace-nowrap">
 				Contact
 			</a>
 		</div>
-		<a
+		<div class="flex items-center gap-1 sm:gap-2">
+			{#if myTickets.length > 0}
+				<div class="relative group">
+					<button class="px-3 sm:px-4 py-1.5 sm:py-2 bg-white/10 text-white text-[11px] sm:text-sm font-bold rounded-full hover:bg-white/20 transition-colors flex items-center gap-1 focus:outline-none">
+						Passes
+						<span class="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-danger text-[8px] font-black text-white">
+							{myTickets.length}
+						</span>
+					</button>
+
+					<!-- Dropdown (Professional) -->
+					<div class="absolute top-full right-0 mt-3 w-64 bg-surface rounded-2xl shadow-2xl border border-border/50 overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all transform scale-95 group-hover:scale-100 origin-top-right">
+						<div class="p-3 bg-bg border-b border-border/50">
+							<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Active Tickets</p>
+						</div>
+						<div class="max-h-60 overflow-y-auto divide-y divide-border/30">
+							{#each myTickets as t}
+								<a href="/ticket/{t.id}" class="block p-4 hover:bg-navy/5 transition-all group/item">
+									<div class="flex justify-between items-start">
+										<div class="min-w-0 pr-3">
+											<p class="text-[11px] font-bold text-text-primary truncate">{t.session || 'Session'}</p>
+											<p class="text-[9px] text-text-tertiary mt-1 font-mono uppercase">#{t.id}</p>
+										</div>
+										<div class="w-6 h-6 rounded-lg bg-navy/5 flex items-center justify-center text-navy group-hover/item:bg-navy group-hover/item:text-white transition-all flex-shrink-0">
+											<ChevronRight size={14} />
+										</div>
+									</div>
+								</a>
+							{/each}
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			<a
 			href="#schedule"
 			onclick={(e) => scrollToSection(e, 'schedule')}
-			class="px-5 py-2 bg-white text-navy text-sm font-bold rounded-full hover:bg-white/90 transition-colors shadow-sm"
+			class="px-3 sm:px-5 py-1.5 sm:py-2 bg-white text-navy text-[10px] sm:text-sm font-bold rounded-full hover:bg-white/90 transition-colors shadow-sm whitespace-nowrap"
 		>
 			Join Now
 		</a>
@@ -110,14 +151,14 @@
 <div class="max-w-5xl mx-auto px-5">
 
 	<!-- Hero Section -->
-	<section id="home" class="pt-10 pb-12 animate-fade-in-up">
-		<div class="flex items-center gap-6">
+	<section id="home" class="pt-6 sm:pt-10 pb-10 sm:pb-12 animate-fade-in-up">
+		<div class="flex flex-col-reverse sm:flex-row items-center sm:items-start gap-6 sm:gap-10">
 			<!-- Left: Text -->
-			<div class="flex-1">
-				<h1 class="text-3xl sm:text-4xl font-extrabold text-text-primary tracking-tight leading-tight">
-					Weekly<br />Badminton<br />Community
+			<div class="flex-1 text-center sm:text-left">
+				<h1 class="text-2xl sm:text-4xl font-extrabold text-text-primary tracking-tight leading-tight">
+					Weekly<br class="hidden sm:block" /> Badminton<br class="hidden sm:block" /> Community
 				</h1>
-				<p class="text-sm sm:text-base text-text-secondary mt-3 leading-relaxed">
+				<p class="text-sm sm:text-base text-text-secondary mt-3 leading-relaxed max-w-sm mx-auto sm:mx-0">
 					Join us every week for fun, social games at Axton Badminton Hall.
 				</p>
 				<a
@@ -130,7 +171,7 @@
 			</div>
 
 			<!-- Right: Logo/Hero image -->
-			<div class="flex-shrink-0 w-32 h-32 sm:w-40 sm:h-40">
+			<div class="flex-shrink-0 w-24 h-24 sm:w-40 sm:h-40">
 				<!-- Using logo.png (background visually removed using multiply blend mode) -->
 				<img
 					src={heroLogo}
@@ -159,10 +200,11 @@
 			<div class="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 snap-x snap-mandatory scrollbar-hide">
 				{#each allSessions as session (session.id)}
 					{@const sessionParticipants = getParticipants(session.id)}
+					{@const passed = isSessionPassed(session)}
 
 					<a
 						href="/session/{session.id}"
-						class="group flex-shrink-0 w-56 bg-surface rounded-3xl border border-border/50 shadow-sm p-5 transition-all duration-300 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] snap-start {session.is_locked ? 'opacity-70' : ''}"
+						class="group flex-shrink-0 w-56 bg-surface rounded-3xl border border-border/50 shadow-sm p-5 transition-all duration-300 snap-start {passed ? 'opacity-50 grayscale pointer-events-none' : session.is_locked ? 'opacity-70 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]' : 'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'}"
 					>
 						<!-- Date & Time -->
 						<div class="mb-3">
@@ -182,7 +224,11 @@
 								<Calendar size={11} />
 								{session.court_count} ct
 							</span>
-							{#if session.is_locked}
+							{#if passed}
+								<span class="flex items-center gap-1 text-text-tertiary">
+									✓ Completed
+								</span>
+							{:else if session.is_locked}
 								<span class="flex items-center gap-1 text-warning">
 									<Lock size={10} />
 									Locked
@@ -192,11 +238,13 @@
 
 						<!-- CTA Button -->
 						<div
-							class="w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors {session.is_locked
+							class="w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors {passed
 								? 'bg-text-tertiary/10 text-text-tertiary'
-								: 'bg-navy text-white group-hover:bg-navy-light'}"
+								: session.is_locked
+									? 'bg-text-tertiary/10 text-text-tertiary'
+									: 'bg-navy text-white group-hover:bg-navy-light'}"
 						>
-							{session.is_locked ? 'View Bill' : 'Book Spot'}
+							{passed ? 'Session Ended' : session.is_locked ? 'View Bill' : 'Book Spot'}
 						</div>
 					</a>
 				{/each}
@@ -206,17 +254,18 @@
 			<div class="mt-6 space-y-3 stagger">
 				{#each allSessions as session (session.id)}
 					{@const sessionParticipants = getParticipants(session.id)}
+					{@const passed = isSessionPassed(session)}
 
 					<a
 						href="/session/{session.id}"
-						class="group flex items-center gap-4 bg-surface rounded-2xl border border-border/50 shadow-sm p-4 transition-all duration-300 hover:shadow-md active:scale-[0.98] animate-fade-in-up {session.is_locked ? 'opacity-70' : ''}"
+						class="group flex items-center gap-4 bg-surface rounded-2xl border border-border/50 shadow-sm p-4 transition-all duration-300 animate-fade-in-up {passed ? 'opacity-50 grayscale pointer-events-none' : session.is_locked ? 'opacity-70 hover:shadow-md active:scale-[0.98]' : 'hover:shadow-md active:scale-[0.98]'}"
 					>
 						<!-- Date Badge -->
-						<div class="flex-shrink-0 w-12 h-12 rounded-xl {session.is_locked ? 'bg-text-tertiary/10' : 'bg-navy'} flex flex-col items-center justify-center">
-							<span class="text-[9px] font-bold {session.is_locked ? 'text-text-tertiary' : 'text-white/70'} tracking-wider">
+						<div class="flex-shrink-0 w-12 h-12 rounded-xl {passed ? 'bg-text-tertiary/10' : session.is_locked ? 'bg-text-tertiary/10' : 'bg-navy'} flex flex-col items-center justify-center">
+							<span class="text-[9px] font-bold {passed || session.is_locked ? 'text-text-tertiary' : 'text-white/70'} tracking-wider">
 								{formatShortDate(session.date).split(',')[0].trim().toUpperCase()}
 							</span>
-							<span class="text-base font-bold {session.is_locked ? 'text-text-secondary' : 'text-white'} -mt-0.5">
+							<span class="text-base font-bold {passed || session.is_locked ? 'text-text-secondary' : 'text-white'} -mt-0.5">
 								{new Date(session.date + 'T00:00:00').getDate()}
 							</span>
 						</div>
@@ -225,7 +274,11 @@
 						<div class="flex-1 min-w-0">
 							<div class="flex items-center gap-2">
 								<h3 class="text-sm font-semibold text-text-primary truncate">{session.title}</h3>
-								{#if session.is_locked}
+								{#if passed}
+									<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary text-[9px] font-bold flex-shrink-0">
+										✓ Ended
+									</span>
+								{:else if session.is_locked}
 									<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[9px] font-bold flex-shrink-0">
 										<Lock size={8} />
 										Locked

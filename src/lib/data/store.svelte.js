@@ -9,60 +9,125 @@ export const appConfig = $state({
 export const db = $state({
 	sessions: [],
 	participants: [],
-	gallery: [], // Daftar foto dari database
+	gallery: [],
+	settings: { qris_url: null },
 	isReady: false
 });
 
+/**
+ * Initialize all database data
+ */
 export async function initDB() {
-	const { data: sData } = await supabase.from('sessions').select('*').order('date', { ascending: false });
-	if (sData) db.sessions = sData;
-
-	const { data: pData } = await supabase.from('participants').select('*');
-	if (pData) db.participants = pData;
-
-	const { data: gData } = await supabase.from('gallery').select('*').order('created_at', { ascending: false });
-	if (gData) db.gallery = gData;
+	if (db.isReady) return;
 	
-	db.isReady = true;
+	try {
+		const [sRes, pRes, gRes, setRes] = await Promise.all([
+			supabase.from('sessions').select('*').order('created_at', { ascending: false }),
+			supabase.from('participants').select('*').order('created_at', { ascending: true }),
+			supabase.from('gallery').select('*').order('created_at', { ascending: false }),
+			supabase.from('settings').select('*').eq('id', 'global').single()
+		]);
+
+		if (sRes.data) db.sessions = sRes.data;
+		if (pRes.data) db.participants = pRes.data;
+		if (gRes.data) db.gallery = gRes.data;
+		if (setRes.data) db.settings = setRes.data;
+		
+		db.isReady = true;
+	} catch (err) {
+		console.error('Failed to init DB:', err);
+		// Fallback minimal agar app tidak crash
+		db.isReady = true;
+	}
+}
+
+/**
+ * Helper to upload file and auto-create bucket if missing
+ */
+async function safeUpload(bucket, path, file, options = {}) {
+	const { data, error } = await supabase.storage.from(bucket).upload(path, file, options);
+	
+	if (error && error.message.includes('Bucket not found')) {
+		console.log(`Auto-creating missing bucket: ${bucket}...`);
+		const { error: createError } = await supabase.storage.createBucket(bucket, { public: true });
+		
+		if (createError) {
+			alert(`⚠️ SISTEM GAGAL MENGUPLOAD GAMBAR.\n\nEror: Folder/Bucket bernama '${bucket}' belum dibuat di Supabase.\n\nSOLUSI UNTUK ADMIN:\n1. Buka Dashboard Supabase\n2. Buka menu Storage\n3. Klik "New Bucket" lalu beri nama: ${bucket}\n4. Centang "Public bucket" lalu Save.`);
+			throw new Error(`Please create the '${bucket}' bucket in Supabase manually.`);
+		}
+		
+		// Retry upload after bucket creation
+		return await supabase.storage.from(bucket).upload(path, file, options);
+	}
+	
+	return { data, error };
 }
 
 export async function uploadGalleryImages(files) {
-	const uploadedItems = [];
-	
 	for (const file of files) {
-		const fileExt = file.name.split('.').pop();
-		const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-		const filePath = `photos/${fileName}`;
+		const compressed = await compressImage(file);
+		const fileName = `gallery-${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+		
+		const { data: uploadData, error: uploadError } = await safeUpload('gallery', fileName, compressed);
 
-		// 1. Upload ke Supabase Storage (Bucket: 'gallery')
-		const { data: sData, error: sError } = await supabase.storage
-			.from('gallery')
-			.upload(filePath, file);
+		if (uploadError) throw uploadError;
 
-		if (sError) {
-			console.error('Upload error:', sError);
-			continue;
-		}
+		const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(fileName);
+		const { error: dbError } = await supabase.from('gallery').insert([{
+			url: urlData.publicUrl,
+			caption: ''
+		}]);
 
-		// 2. Ambil Public URL
-		const { data: { publicUrl } } = supabase.storage
-			.from('gallery')
-			.getPublicUrl(filePath);
-
-		// 3. Simpan ke Tabel 'gallery'
-		const { data: dbData, error: dbError } = await supabase
-			.from('gallery')
-			.insert([{ url: publicUrl, caption: file.name }])
-			.select();
-
-		if (dbData && dbData[0]) {
-			uploadedItems.push(dbData[0]);
-		}
+		if (dbError) throw dbError;
 	}
+	
+	// Refresh gallery
+	const { data } = await supabase.from('gallery').select('*').order('created_at', { ascending: false });
+	if (data) db.gallery = data;
+}
 
-	// Update local state
-	db.gallery = [...uploadedItems, ...db.gallery];
-	return uploadedItems;
+export async function deleteGalleryImage(id, url) {
+	try {
+		// Hapus dari bucket storage (ambil filename dari URL)
+		const fileName = url.split('/').pop();
+		if (fileName) {
+			await supabase.storage.from('gallery').remove([fileName]);
+		}
+
+		// Hapus record dari database
+		const { error } = await supabase.from('gallery').delete().eq('id', id);
+		if (error) throw error;
+
+		// Update UI/State
+		db.gallery = db.gallery.filter(item => item.id !== id);
+	} catch (err) {
+		console.error('Failed to delete gallery image:', err);
+		throw err;
+	}
+}
+
+/**
+ * Update global QRIS image
+ * @param {File} file 
+ */
+export async function updateQRIS(file) {
+	const compressed = await compressImage(file);
+	const fileName = `settings-qris-${Date.now()}.jpg`;
+	
+	const { error: uploadError } = await safeUpload('gallery', fileName, compressed);
+
+	if (uploadError) throw uploadError;
+
+	const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(fileName);
+	
+	const { error: dbError } = await supabase
+		.from('settings')
+		.update({ qris_url: urlData.publicUrl, updated_at: new Date().toISOString() })
+		.eq('id', 'global');
+
+	if (dbError) throw dbError;
+	
+	db.settings.qris_url = urlData.publicUrl;
 }
 
 export async function uploadPaymentProof(participantId, file) {
@@ -74,11 +139,9 @@ export async function uploadPaymentProof(participantId, file) {
 	const compressedBlob = await compressImage(file);
 
 	// 2. Upload ke Storage
-	const { data: sData, error: sError } = await supabase.storage
-		.from('gallery')
-		.upload(filePath, compressedBlob, {
-			contentType: 'image/jpeg'
-		});
+	const { data: sData, error: sError } = await safeUpload('gallery', filePath, compressedBlob, {
+		contentType: 'image/jpeg'
+	});
 
 	if (sError) throw sError;
 
@@ -227,15 +290,16 @@ export async function createSession(title, date, time, subtitle, courtCount, rac
 // ── Pricing Logic ──────────────────────────────────────────────────
 
 export function calcCourtShare(session, sessionParticipants) {
-	if (!session || !sessionParticipants) return 0;
-	const count = sessionParticipants.length || 1;
+	if (!session || !sessionParticipants || sessionParticipants.length === 0) return 0;
+	const count = sessionParticipants.length;
 	return Math.ceil(((session.court_count || 0) * 77000) / count);
 }
 
 export function calcRacketShare(session, sessionParticipants) {
 	if (!session || !sessionParticipants || (session.racket_count || 0) === 0) return 0;
 	const renters = sessionParticipants.filter((p) => p?.needs_racket);
-	const renterCount = renters.length || 1;
+	if (renters.length === 0) return 0;
+	const renterCount = renters.length;
 	return Math.ceil(((session.racket_count || 0) * 20000) / renterCount);
 }
 
@@ -255,8 +319,87 @@ export function calcTotalCost(session) {
 
 export function isRSVPOpen(session) {
 	if (!session || !session.date) return false;
-	const sessionDate = new Date(session.date + 'T' + (session.time ? session.time.split(' - ')[0] : '00:00'));
-	const now = new Date();
-	const hourDiff = (sessionDate - now) / (1000 * 60 * 60);
-	return hourDiff > 24;
+	
+	try {
+		// Bersihkan format jam (misal "2 PM - 4 PM" -> "2 PM")
+		const rawTime = (session.time || "00:00").split(' - ')[0].trim();
+		let hours = 0;
+		let minutes = 0;
+
+		if (rawTime.includes(':')) {
+			// Format HH:mm
+			[hours, minutes] = rawTime.split(':').map(n => parseInt(n));
+		} else {
+			// Format 2 PM / 7PM
+			const match = rawTime.match(/(\d+)\s*(AM|PM)/i);
+			if (match) {
+				hours = parseInt(match[1]);
+				const ampm = match[2].toUpperCase();
+				if (ampm === 'PM' && hours < 12) hours += 12;
+				if (ampm === 'AM' && hours === 12) hours = 0;
+			} else {
+				// Default jika hanya angka
+				hours = parseInt(rawTime) || 0;
+			}
+		}
+
+		const sessionDate = new Date(`${session.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`);
+		const now = new Date();
+		
+		if (isNaN(sessionDate.getTime())) return true; // Fallback jika parsing gagal, anggap saja buka
+
+		// RSVP dibuka sampai 2 jam sebelum sesi mulai
+		const hourDiff = (sessionDate - now) / (1000 * 60 * 60);
+		return hourDiff > 2;
+	} catch (e) {
+		return true; // Jika ada error parsing, biarkan RSVP terbuka
+	}
+}
+
+export function isSessionPassed(session) {
+	if (!session || !session.date) return false;
+	
+	try {
+		// Dapatkan waktu akhir jika ada "19:00 - 23:00", ambil "23:00". Jika cuma "19:00", anggap akhir=mulai
+		const parts = (session.time || "00:00").split(' - ');
+		const rawTime = (parts.length > 1 ? parts[1] : parts[0]).trim();
+		
+		let hours = 0;
+		let minutes = 0;
+
+		if (rawTime.includes(':')) {
+			[hours, minutes] = rawTime.split(':').map(n => parseInt(n));
+		} else {
+			const match = rawTime.match(/(\d+)\s*(AM|PM)/i);
+			if (match) {
+				hours = parseInt(match[1]);
+				const ampm = match[2].toUpperCase();
+				if (ampm === 'PM' && hours < 12) hours += 12;
+				if (ampm === 'AM' && hours === 12) hours = 0;
+			} else {
+				hours = parseInt(rawTime) || 0;
+			}
+		}
+
+		const sessionEndDate = new Date(`${session.date}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`);
+		const now = new Date();
+		
+		if (isNaN(sessionEndDate.getTime())) return false; 
+		
+		return now > sessionEndDate;
+	} catch (e) {
+		return false; 
+	}
+}
+
+export async function deleteSession(sessionId) {
+	const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
+	if (!error) {
+		db.sessions = db.sessions.filter(s => s.id !== sessionId);
+		// Karena ada relasi cascade di database (idealnya), participants akan terhapus otomatis di sisi server.
+		// Namun kita juga perlu membersihkan dari array statis agar UI ter-update:
+		db.participants = db.participants.filter(p => p.session_id !== sessionId);
+	} else {
+		console.error("Gagal menghapus sesi:", error);
+	}
 }
