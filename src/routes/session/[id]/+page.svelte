@@ -6,6 +6,7 @@
 		addParticipant,
 		markPaid,
 		calcCourtShare,
+		calcRacketShare,
 		calcPlayerCost,
 		calcTotalCost,
 		isRSVPOpen,
