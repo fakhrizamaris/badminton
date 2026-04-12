@@ -9,6 +9,8 @@
 		appConfig,
 		calcPlayerCost,
 		calcTotalCost,
+		calcCourtShare,
+		calcRacketShare,
 		db,
 		uploadGalleryImages,
 		deleteGalleryImage
@@ -114,6 +116,10 @@
 		newRackets = 0;
 		formError = '';
 		showCreateForm = false;
+	}
+
+	function toggleExpand(id) {
+		expandedSessionId = expandedSessionId === id ? null : id;
 	}
 
 	let isUploading = $state(false);
