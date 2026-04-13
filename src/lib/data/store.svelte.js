@@ -274,6 +274,25 @@ async function safeUpload(bucket, path, file, options = {}) {
 	return { data, error: null };
 }
 
+function getPublicStoragePath(publicUrl, bucket) {
+	if (!publicUrl || typeof publicUrl !== 'string') return null;
+	const cleanUrl = publicUrl.split('?')[0];
+	const marker = `/object/public/${bucket}/`;
+	const idx = cleanUrl.indexOf(marker);
+	if (idx === -1) return null;
+	return cleanUrl.substring(idx + marker.length);
+}
+
+async function removeStorageFileIfExists(bucket, publicUrl) {
+	const filePath = getPublicStoragePath(publicUrl, bucket);
+	if (!filePath) return;
+
+	const { error } = await supabase.storage.from(bucket).remove([filePath]);
+	if (error) {
+		console.warn(`Storage cleanup failed for ${bucket}/${filePath}:`, error.message);
+	}
+}
+
 // ── Gallery Upload ────────────────────────────────────────────────
 
 /**
@@ -360,6 +379,7 @@ export async function deleteGalleryImage(id, url) {
 // ── QRIS ──────────────────────────────────────────────────────────
 
 export async function updateQRIS(file) {
+	const oldQrisUrl = db.settings?.qris_url || null;
 	const compressed = await compressImage(file, 'proof');
 	const filePath = `settings/qris-${Date.now()}.webp`;
 
@@ -378,6 +398,7 @@ export async function updateQRIS(file) {
 	if (dbErr) throw dbErr;
 
 	db.settings.qris_url = cleanUrl;
+	await removeStorageFileIfExists('gallery', oldQrisUrl);
 }
 
 export async function updateMapsUrl(newUrl) {
@@ -407,6 +428,9 @@ export async function updateMapsUrl(newUrl) {
 // ── Payment Proof ─────────────────────────────────────────────────
 
 export async function uploadPaymentProof(participantId, file) {
+	const participant = db.participants.find(p => p.id === participantId);
+	const oldProofUrl = participant?.payment_proof_url || null;
+
 	const compressed = await compressImage(file, 'proof');
 	const filePath = `payment/proof-${participantId}-${Date.now()}.webp`;
 
@@ -432,6 +456,8 @@ export async function uploadPaymentProof(participantId, file) {
 		p.payment_proof_url = publicUrl;
 		p.payment_status = 'pending';
 	}
+
+	await removeStorageFileIfExists('proofs', oldProofUrl);
 
 	return publicUrl;
 }
@@ -605,6 +631,7 @@ export async function togglePaid(participantId) {
 export async function rejectPayment(participantId) {
 	const p = db.participants.find(p => p.id === participantId);
 	if (!p) return;
+	const oldProofUrl = p.payment_proof_url || null;
 
 	// Set status ke 'rejected', has_paid ke false, dan HAPUS bukti agar keluar dari antrean admin
 	const { error } = await supabase
@@ -620,6 +647,7 @@ export async function rejectPayment(participantId) {
 		p.payment_status = 'rejected';
 		p.has_paid = false;
 		p.payment_proof_url = null;
+		await removeStorageFileIfExists('proofs', oldProofUrl);
 	} else {
 		console.error('Reject payment error:', error);
 	}
@@ -670,6 +698,36 @@ export async function toggleSessionShuttlecock(sessionId) {
 	} else {
 		console.error('Toggle shuttlecock error:', error);
 	}
+}
+
+export async function updateSessionConfig(sessionId, { court_count, racket_count, buy_shuttlecock }) {
+	const session = getSession(sessionId);
+	if (!session) return null;
+
+	const nextCourt = Math.max(1, Number(court_count || 0));
+	const nextRacket = Math.max(0, Number(racket_count || 0));
+	const nextShuttlecock = Boolean(buy_shuttlecock);
+
+	const updateData = {
+		court_count: nextCourt,
+		racket_count: nextRacket,
+		buy_shuttlecock: nextShuttlecock
+	};
+
+	const { data, error } = await supabase
+		.from('sessions')
+		.update(updateData)
+		.eq('id', sessionId)
+		.select()
+		.single();
+
+	if (error) {
+		console.error('Update session config error:', error);
+		return null;
+	}
+
+	Object.assign(session, updateData);
+	return data || session;
 }
 
 // ── Pricing ───────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 <script>
 	import { page } from "$app/state";
 	import { onMount } from "svelte";
+	import { slide } from "svelte/transition";
 	import {
 		getSession,
 		getParticipants,
@@ -27,6 +28,8 @@
 		Zap,
 		Lock,
 		CircleDollarSign,
+		CircleUserRound,
+		HandCoins,
 		QrCode,
 		Check,
 		CheckCircle,
@@ -58,6 +61,15 @@
 
 	onMount(() => {
 		initDB();
+
+		const savedCopyVariant = localStorage.getItem("estimate_copy_variant");
+		if (savedCopyVariant === "A" || savedCopyVariant === "B") {
+			estimateCopyVariant = savedCopyVariant;
+		} else {
+			estimateCopyVariant = Math.random() < 0.5 ? "A" : "B";
+			localStorage.setItem("estimate_copy_variant", estimateCopyVariant);
+		}
+
 		// 1. Cek dari URL dulu (Paling kuat, misal dari link yang dibagikan)
 		const ticketParam = page.url.searchParams.get("ticket");
 		if (ticketParam) {
@@ -70,6 +82,8 @@
 
 	let recoverTicketId = $state("");
 	let recoverError = $state("");
+	let showPriceDetails = $state(false);
+	let estimateCopyVariant = $state("A");
 
 	async function findAndClaimTicket(id) {
 		const p = sessionParticipants.find(
@@ -93,6 +107,11 @@
 		sessionParticipants.find((p) => p.id === myParticipantId),
 	);
 	let showReceipt = $state(false);
+	let estimateSupportCopy = $derived(
+		estimateCopyVariant === "A"
+			? "It can go down when more players join."
+			: "Most sessions end up cheaper as attendance grows.",
+	);
 
 	let modalCost = $derived.by(() => {
 		if (!session) return 0;
@@ -568,139 +587,130 @@
 					>
 						{session.is_locked
 							? "Final Locked Bill"
-							: "Estimated Price"}
+							: "RSVP-First Estimate"}
 					</p>
 				</div>
 
-				<!-- Two price tiers -->
-				<div class="grid grid-cols-2 gap-3 mb-4">
-					<!-- Own racket -->
+				{#if !session.is_locked}
 					<div
-						class="rounded-2xl p-3 {session.is_locked
-							? 'bg-white/10'
-							: 'bg-bg'}"
+						class="mb-4 p-3 rounded-2xl bg-navy/5 border border-navy/10"
 					>
-						<p
-							class="text-[10px] font-medium {session.is_locked
-								? 'text-white/50'
-								: 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1"
-						>
-							<Feather size={12} /> Own Racket
+						<p class="text-[11px] font-semibold text-text-primary">
+							RSVP is free. Final payment is confirmed after admin
+							lock.
 						</p>
-						<p
-							class="text-lg sm:text-xl font-bold {session.is_locked
-								? 'text-white'
-								: 'text-text-primary'} tracking-tight"
-						>
-							{formatCurrency(costOwnRacket)}
+						<p class="text-[10px] text-text-tertiary mt-1">
+							Current estimate for you:
+							<strong class="text-navy">
+								{formatCurrency(
+									calcPlayerCost(
+										session,
+										projectedParticipants,
+										myRegistration?.needs_racket ??
+											needsRacket,
+									),
+								)}
+							</strong>
 						</p>
-						<p
-							class="text-[10px] {session.is_locked
-								? 'text-white/40'
-								: 'text-text-tertiary'} mt-0.5"
-						>
-							per person
+						<p class="text-[10px] text-text-tertiary mt-0.5 italic">
+							{estimateSupportCopy}
 						</p>
 					</div>
 
-					<!-- Renting racket -->
-					<div
-						class="rounded-2xl p-3 {session.is_locked
-							? 'bg-white/10'
-							: 'bg-bg'}"
+					<button
+						type="button"
+						onclick={() => (showPriceDetails = !showPriceDetails)}
+						class="w-full mb-4 py-2.5 px-4 rounded-xl border border-border/60 text-xs font-semibold text-text-secondary hover:text-navy hover:border-navy/30 transition-all"
 					>
-						<p
-							class="text-[10px] font-medium {session.is_locked
-								? 'text-white/50'
-								: 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1"
-						>
-							<Zap
-								size={12}
-								class={session.is_locked
-									? "text-white/50"
-									: "text-navy"}
-							/> Rent Racket
-						</p>
-						<p
-							class="text-lg sm:text-xl font-bold {session.is_locked
-								? 'text-white'
-								: 'text-navy'} tracking-tight"
-						>
-							{formatCurrency(costRentRacket)}
-						</p>
-						<p
-							class="text-[10px] {session.is_locked
-								? 'text-white/40'
-								: 'text-text-tertiary'} mt-0.5"
-						>
-							per person
-						</p>
-					</div>
-				</div>
+						{showPriceDetails
+							? "Hide detailed calculation"
+							: "See detailed calculation"}
+					</button>
+				{/if}
 
-				<!-- Simplified Breakdown -->
-				<div
-					class="pt-3 border-t {session.is_locked
-						? 'border-white/10'
-						: 'border-border/50'} space-y-1.5"
-				>
+				{#if session.is_locked || showPriceDetails}
+					<!-- Two price tiers -->
 					<div
-						class="flex justify-between text-[10px] uppercase tracking-wider font-bold"
+						class="grid grid-cols-2 gap-3 mb-4"
+						transition:slide={{ duration: 180 }}
 					>
-						<span
-							class={session.is_locked
-								? "text-white/40"
-								: "text-text-tertiary"}
+						<!-- Own racket -->
+						<div
+							class="rounded-2xl p-3 {session.is_locked
+								? 'bg-white/10'
+								: 'bg-bg'}"
 						>
-							Total Court Fees
-						</span>
-						<span
-							class={session.is_locked
-								? "text-white/60"
-								: "text-text-secondary"}
+							<p
+								class="text-[10px] font-medium {session.is_locked
+									? 'text-white/50'
+									: 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1"
+							>
+								<CircleUserRound size={12} /> Bring Your Own
+							</p>
+							<p
+								class="text-lg sm:text-xl font-bold {session.is_locked
+									? 'text-white'
+									: 'text-text-primary'} tracking-tight"
+							>
+								{formatCurrency(costOwnRacket)}
+							</p>
+							<p
+								class="text-[10px] {session.is_locked
+									? 'text-white/40'
+									: 'text-text-tertiary'} mt-0.5"
+							>
+								per person
+							</p>
+						</div>
+
+						<!-- Renting racket -->
+						<div
+							class="rounded-2xl p-3 {session.is_locked
+								? 'bg-white/10'
+								: 'bg-bg'}"
 						>
-							{formatCurrency(session.court_count * 77000)}
-						</span>
+							<p
+								class="text-[10px] font-medium {session.is_locked
+									? 'text-white/50'
+									: 'text-text-tertiary'} flex items-center gap-1.5 uppercase tracking-wider mb-1"
+							>
+								<HandCoins
+									size={12}
+									class={session.is_locked
+										? "text-white/50"
+										: "text-navy"}
+								/> Rental Racket
+							</p>
+							<p
+								class="text-lg sm:text-xl font-bold {session.is_locked
+									? 'text-white'
+									: 'text-navy'} tracking-tight"
+							>
+								{formatCurrency(costRentRacket)}
+							</p>
+							<p
+								class="text-[10px] {session.is_locked
+									? 'text-white/40'
+									: 'text-text-tertiary'} mt-0.5"
+							>
+								per person
+							</p>
+						</div>
 					</div>
+
+					<!-- Cost Breakdown -->
 					<div
-						class="flex justify-between text-[10px] uppercase tracking-wider font-bold"
+						class="pt-3 border-t {session.is_locked
+							? 'border-white/10'
+							: 'border-border/50'} space-y-1.5"
 					>
-						<span
-							class={session.is_locked
-								? "text-white/40"
-								: "text-text-tertiary"}
+						<p
+							class="text-[10px] uppercase tracking-wider font-bold {session.is_locked
+								? 'text-white/40'
+								: 'text-text-tertiary'}"
 						>
-							Total Racket Rental
-						</span>
-						<span
-							class={session.is_locked
-								? "text-white/60"
-								: "text-text-secondary"}
-						>
-							{formatCurrency(session.racket_count * 20000)}
-						</span>
-					</div>
-					<div
-						class="flex justify-between text-[10px] uppercase tracking-wider font-bold"
-					>
-						<span
-							class={session.is_locked
-								? "text-white/40"
-								: "text-text-tertiary"}
-						>
-							Shuttlecock
-						</span>
-						<span
-							class={session.is_locked
-								? "text-white/60"
-								: "text-text-secondary"}
-						>
-							{session.buy_shuttlecock
-								? formatCurrency(SHUTTLECOCK_PRICE)
-								: formatCurrency(0)}
-						</span>
-					</div>
-					{#if session.buy_shuttlecock}
+							Session Cost Breakdown (Total)
+						</p>
 						<div
 							class="flex justify-between text-[10px] uppercase tracking-wider font-bold"
 						>
@@ -709,46 +719,118 @@
 									? "text-white/40"
 									: "text-text-tertiary"}
 							>
-								Shuttlecock / Person
+								Court Booking Total
 							</span>
 							<span
 								class={session.is_locked
 									? "text-white/60"
 									: "text-text-secondary"}
 							>
-								{formatCurrency(shuttlecockShare)}
+								{formatCurrency(session.court_count * 77000)}
 							</span>
 						</div>
-					{/if}
-					<div
-						class="flex justify-between text-xs font-black pt-2 border-t {session.is_locked
-							? 'border-white/10'
-							: 'border-border/30'}"
-					>
-						<span
-							class={session.is_locked
-								? "text-white/50"
-								: "text-text-tertiary"}
+						<div
+							class="flex justify-between text-[10px] uppercase tracking-wider font-bold"
 						>
-							{session.is_locked
-								? "TOTAL PER ORANG"
-								: "ESTIMASI TOTAL"}
-						</span>
-						<span
-							class={session.is_locked
-								? "text-white"
-								: "text-navy"}
+							<span
+								class={session.is_locked
+									? "text-white/40"
+									: "text-text-tertiary"}
+							>
+								Racket Rental Pool
+							</span>
+							<span
+								class={session.is_locked
+									? "text-white/60"
+									: "text-text-secondary"}
+							>
+								{formatCurrency(session.racket_count * 20000)}
+							</span>
+						</div>
+						{#if session.buy_shuttlecock}
+							<div
+								class="flex justify-between text-[10px] uppercase tracking-wider font-bold"
+							>
+								<span
+									class={session.is_locked
+										? "text-white/40"
+										: "text-text-tertiary"}
+								>
+									Shuttlecock Fee
+								</span>
+								<span
+									class={session.is_locked
+										? "text-white/60"
+										: "text-text-secondary"}
+								>
+									{formatCurrency(SHUTTLECOCK_PRICE)}
+								</span>
+							</div>
+						{/if}
+						<div
+							class="flex justify-between text-xs font-black pt-2 border-t {session.is_locked
+								? 'border-white/10'
+								: 'border-border/30'}"
 						>
-							{formatCurrency(
-								calcPlayerCost(
-									session,
-									projectedParticipants,
-									myRegistration?.needs_racket ?? needsRacket,
-								),
-							)}
-						</span>
+							<span
+								class={session.is_locked
+									? "text-white/50"
+									: "text-text-tertiary"}
+							>
+								Session Total Cost
+							</span>
+							<span
+								class={session.is_locked
+									? "text-white"
+									: "text-navy"}
+							>
+								{formatCurrency(calcTotalCost(session))}
+							</span>
+						</div>
+
+						<div
+							class="flex justify-between text-xs font-black pt-2 border-t {session.is_locked
+								? 'border-white/10'
+								: 'border-border/30'}"
+						>
+							<span
+								class={session.is_locked
+									? "text-white/50"
+									: "text-text-tertiary"}
+							>
+								{session.is_locked
+									? "Your Final Payment"
+									: "Your Estimated Payment"}
+							</span>
+							<span
+								class={session.is_locked
+									? "text-white"
+									: "text-navy"}
+							>
+								{formatCurrency(
+									calcPlayerCost(
+										session,
+										projectedParticipants,
+										myRegistration?.needs_racket ??
+											needsRacket,
+									),
+								)}
+							</span>
+						</div>
+						{#if session.buy_shuttlecock}
+							<div
+								class="flex justify-between text-[10px] font-medium {session.is_locked
+									? 'text-white/50'
+									: 'text-text-tertiary'}"
+							>
+								<span
+									>Included shuttlecock share in your payment</span
+								>
+								<span>{formatCurrency(shuttlecockShare)}</span>
+							</div>
+						{/if}
 					</div>
-				</div>
+				{/if}
 
 				<!-- Info note -->
 				{#if !session.is_locked}

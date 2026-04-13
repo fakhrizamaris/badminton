@@ -13,6 +13,7 @@
 		XCircle,
 		Info,
 		AlertTriangle,
+		Github,
 		X,
 	} from "lucide-svelte";
 	import { fade, fly, scale } from "svelte/transition";
@@ -45,6 +46,25 @@
 	<main class="flex-1 pb-20">
 		{@render children()}
 	</main>
+
+	<footer class="px-5 pb-6 pt-2">
+		<div
+			class="max-w-4xl mx-auto border-t border-border/50 pt-4 flex items-center justify-between gap-3"
+		>
+			<p class="text-[11px] text-text-tertiary tracking-wide">
+				Built for easier payment flow and transparent split-bills.
+			</p>
+			<a
+				href="https://github.com/fakhrizamaris/badminton"
+				target="_blank"
+				rel="noopener noreferrer"
+				class="inline-flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
+			>
+				<Github size={13} />
+				<span>Source</span>
+			</a>
+		</div>
+	</footer>
 
 	<!-- Global Toasts -->
 	<div
