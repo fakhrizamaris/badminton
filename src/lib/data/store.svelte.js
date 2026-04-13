@@ -12,7 +12,9 @@ export const db = $state({
 	gallery: [],
 	settings: { qris_url: null },
 	theme: 'light',
-	isReady: false
+	isReady: false,
+	toasts: [],
+	confirm: null
 });
 
 // ── Date Folder Helper ────────────────────────────────────────────
@@ -128,6 +130,33 @@ export function toggleTheme() {
 	db.theme = db.theme === 'light' ? 'dark' : 'light';
 	localStorage.setItem('app_theme', db.theme);
 	applyTheme(db.theme);
+}
+
+// ── Notifications ─────────────────────────────────────────────────
+
+export function showToast(message, type = 'info') {
+	const id = Math.random().toString(36).substring(2, 9);
+	db.toasts = [...db.toasts, { id, message, type }];
+
+	setTimeout(() => {
+		db.toasts = db.toasts.filter(t => t.id !== id);
+	}, 3500);
+}
+
+export function askConfirm({ title, message, confirmText = 'Ya, Lanjutkan', cancelText = 'Batal', type = 'info' }) {
+	return new Promise((resolve) => {
+		db.confirm = {
+			title,
+			message,
+			confirmText,
+			cancelText,
+			type,
+			resolve: (val) => {
+				db.confirm = null;
+				resolve(val);
+			}
+		};
+	});
 }
 
 // ── Storage: safeUpload ───────────────────────────────────────────

@@ -21,7 +21,9 @@
 		toggleTheme,
 		rejectPayment,
 		updateMapsUrl,
-		getParticipantByTicket
+		getParticipantByTicket,
+		showToast,
+		askConfirm
 	} from '$lib/data/store.svelte.js';
 
 	import {
@@ -53,7 +55,7 @@
 				() => {}
 			).catch(err => {
 				console.error("Scanner error:", err);
-				alert("Gagal mengakses kamera. Pastikan izin kamera aktif.");
+				showToast("Gagal mengakses kamera. Pastikan izin kamera aktif.", "error");
 				stopScanner();
 			});
 		}, 300);
@@ -92,7 +94,7 @@
 				return;
 			}
 		}
-		alert("Tiket tidak valid atau tidak ditemukan.");
+		showToast("Tiket tidak valid atau tidak ditemukan.", "error");
 	}
 
 	// ── Search & Filter ──────────────────────────────────────────
@@ -155,10 +157,18 @@
 
 	async function handleRejectPayment() {
 		if (selectedVerification) {
-			if (confirm(`Tolak verifikasi pembayaran untuk ${selectedVerification.name}?`)) {
+			const confirmed = await askConfirm({
+				title: 'Tolak Pembayaran?',
+				message: `Tolak verifikasi pembayaran untuk ${selectedVerification.name}?`,
+				confirmText: 'Ya, Tolak',
+				type: 'danger'
+			});
+
+			if (confirmed) {
 				triggerHaptic('error');
 				await rejectPayment(selectedVerification.id);
 				closeVerification();
+				showToast('Pembayaran ditolak', 'info');
 			}
 		}
 	}
@@ -178,7 +188,7 @@
 			setTimeout(() => { qrisSuccess = false; }, 3000);
 		} catch (err) {
 			console.error('QRIS upload failed:', err);
-			alert('Gagal upload QRIS. Cek console untuk detail.');
+			showToast('Gagal upload QRIS. Cek console untuk detail.', 'error');
 			qrisPreview = null;
 		} finally {
 			isUploadingQRIS = false;
@@ -203,11 +213,11 @@
 		try {
 			await updateMapsUrl(mapsUrlInput);
 			showMapsConfig = false;
-			alert('Lokasi peta berhasil diperbarui!');
+			showToast('Lokasi peta berhasil diperbarui!', 'success');
 		} catch (err) {
 			console.error('Save maps failed:', err);
 			// Tampilkan detail error agar tahu apakah itu masalah RLS, kolom, atau koneksi
-			alert(`Gagal memperbarui peta: ${err.message || 'Cek koneksi atau izin database Anda.'}`);
+			showToast(`Gagal memperbarui peta: ${err.message || 'Cek koneksi database.'}`, 'error');
 		} finally {
 			isSavingMaps = false;
 		}
@@ -714,7 +724,18 @@
 								</div>
 								<div class="flex items-center gap-1.5 sm:gap-2">
 									<button
-										onclick={async () => { if (confirm(`Hapus "${session.title}"? Semua peserta juga akan dihapus.`)) await deleteSession(session.id); }}
+										onclick={async () => { 
+											const confirmed = await askConfirm({
+												title: 'Hapus Sesi?',
+												message: `Hapus "${session.title}"? Semua peserta juga akan dihapus.`,
+												confirmText: 'Hapus Sesi',
+												type: 'danger'
+											});
+											if (confirmed) {
+												await deleteSession(session.id);
+												showToast('Sesi berhasil dihapus', 'success');
+											}
+										}}
 										class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-90"
 									><Trash2 size={15} /></button>
 									<button
