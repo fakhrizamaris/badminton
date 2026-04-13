@@ -6,6 +6,7 @@
 
 	let myTickets = $state([]);
 	let isMenuOpen = $state(false);
+	let showPasses = $state(false);
 
 	onMount(() => {
 		myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
@@ -70,10 +71,28 @@
 
 	// Menggabungkan foto statis dan foto hasil upload dynamic
 	let combinedGallery = $derived([
-		...db.gallery.map(img => ({ url: img.url, date: 'Community Moment' })),
+		...db.gallery.map(img => ({ 
+			url: `${img.url.split('?')[0]}?v=${img.id}`, 
+			date: (img.folder || '').replace(/-/g, ' ') || 'Gallery' 
+		})),
 		...galleryData.flatMap(group => group.images.map(src => ({ url: src, date: group.date })))
 	]);
+
+	// Lightbox State
+	let selectedImage = $state(null);
+	function openLightbox(img) {
+		selectedImage = img;
+		document.body.style.overflow = 'hidden';
+	}
+	function closeLightbox() {
+		selectedImage = null;
+		document.body.style.overflow = 'auto';
+	}
 </script>
+
+<svelte:window onclick={(e) => { 
+	if (showPasses && !e.target.closest('.passes-dropdown-container')) showPasses = false; 
+}} />
 
 <svelte:head>
 	<title>Home — Badminton Split-Bill</title>
@@ -122,22 +141,30 @@
 			</button>
 
 			{#if myTickets.length > 0}
-				<div class="relative group">
-					<button class="h-12 px-5 bg-navy text-white text-[13px] font-black rounded-2xl shadow-lg shadow-navy/10 flex items-center gap-2 hover:bg-navy/90 transition-all">
+				<div class="relative passes-dropdown-container">
+					<button 
+						onclick={(e) => { e.stopPropagation(); showPasses = !showPasses; }}
+						class="h-12 px-5 bg-navy text-white text-[13px] font-black rounded-2xl shadow-lg shadow-navy/10 flex items-center gap-2 hover:bg-navy/90 transition-all active:scale-95"
+					>
 						Passes
-						<span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-black text-navy">
+						<span class="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-black text-navy text-center">
 							{myTickets.length}
 						</span>
 					</button>
 
 					<!-- Dropdown Desktop -->
-					<div class="absolute top-full right-0 mt-3 w-64 bg-surface rounded-2xl shadow-2xl border border-border/50 overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all transform scale-95 group-hover:scale-100 origin-top-right">
+					<div class="absolute top-full right-0 mt-3 w-64 bg-surface rounded-2xl shadow-2xl border border-border/50 overflow-hidden transition-all transform origin-top-right z-[100]
+						{showPasses ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-95'}">
 						<div class="p-4 bg-bg border-b border-border/50">
 							<p class="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Your Active Passes</p>
 						</div>
 						<div class="max-h-60 overflow-y-auto divide-y divide-border/30">
 							{#each myTickets as t}
-								<a href="/ticket/{t.id}" class="block p-4 hover:bg-navy/5 transition-all group/item">
+								<a 
+									href="/ticket/{t.id}" 
+									onclick={() => showPasses = false}
+									class="block p-4 hover:bg-navy/5 transition-all group/item"
+								>
 									<div class="flex justify-between items-start">
 										<div class="min-w-0 pr-3">
 											<p class="text-xs font-bold text-text-primary truncate">{t.session || 'Session'}</p>
@@ -208,14 +235,60 @@
 				</a>
 			</div>
 
-			<!-- Right: Logo/Hero image -->
-			<div class="flex-shrink-0 w-24 h-24 sm:w-40 sm:h-40">
-				<!-- Using logo.png (background visually removed using multiply blend mode) -->
-				<img
-					src={heroLogo}
-					alt="Apple Academy Badminton Logo"
-					class="w-full h-full object-contain rounded-2xl mix-blend-multiply"
-				/>
+			<!-- Right: Visual (Logo + Floating Cards) -->
+			<div class="flex-1 flex justify-center lg:justify-end animate-fade-in relative min-h-[250px] sm:min-h-[400px]">
+				<!-- Background Glow -->
+				<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 sm:w-80 sm:h-80 bg-navy/20 blur-[100px] rounded-full pointer-events-none"></div>
+				
+				<div class="relative w-28 h-28 sm:w-48 sm:h-48 lg:w-64 lg:h-64 z-10">
+					<!-- Main Logo -->
+					<div class="w-full h-full p-4 bg-white/5 backdrop-blur-sm rounded-[2rem] border border-white/10 shadow-2xl flex items-center justify-center overflow-hidden group">
+						<img
+							src={heroLogo}
+							alt="Apple Academy Badminton Logo"
+							class="w-full h-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700"
+						/>
+					</div>
+
+					<!-- Floating Card 1: Levels -->
+					<div class="absolute -top-10 -right-20 sm:-top-12 sm:-right-28 bg-white/10 backdrop-blur-xl border border-white/20 p-2 sm:p-4 rounded-2xl shadow-2xl animate-float-slow z-20 whitespace-nowrap">
+						<div class="flex items-center gap-3">
+							<div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-navy/20 flex items-center justify-center text-navy">
+								<Users size={16} strokeWidth={3} />
+							</div>
+							<div>
+								<p class="text-[8px] sm:text-[10px] font-black text-text-tertiary uppercase tracking-widest">Community</p>
+								<p class="text-[10px] sm:text-sm font-black text-text-primary">All Levels Welcome</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Floating Card 2: Schedule -->
+					<div class="absolute -bottom-14 -left-20 sm:-bottom-20 sm:-left-36 bg-white/10 backdrop-blur-xl border border-white/20 p-2 sm:p-4 rounded-2xl shadow-2xl animate-float z-20 whitespace-nowrap" style="animation-delay: 1.5s">
+						<div class="flex items-center gap-3">
+							<div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-success/20 flex items-center justify-center text-success">
+								<Calendar size={16} strokeWidth={3} />
+							</div>
+							<div>
+								<p class="text-[8px] sm:text-[10px] font-black text-text-tertiary uppercase tracking-widest">Typical Days</p>
+								<p class="text-[10px] sm:text-sm font-black text-text-primary">Sat & Sun Sessions</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Floating Card 3: Location -->
+					<div class="absolute top-1/2 -left-40 sm:-left-56 -translate-y-1/2 bg-white/10 backdrop-blur-xl border border-white/20 p-2 sm:p-4 rounded-2xl shadow-2xl animate-float-fast z-20 hidden lg:block whitespace-nowrap" style="animation-delay: 0.5s">
+						<div class="flex items-center gap-3">
+							<div class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-warning/20 flex items-center justify-center text-warning">
+								<MapPin size={16} strokeWidth={3} />
+							</div>
+							<div>
+								<p class="text-[8px] sm:text-[10px] font-black text-text-tertiary uppercase tracking-widest">Venue</p>
+								<p class="text-[10px] sm:text-sm font-black text-text-primary">Axton Badminton Hall, Botania 1</p>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	</section>
@@ -348,18 +421,14 @@
 				Feel the passion, the friendship, and the unrelenting drive on the court. This collection is a tribute to the vibrant community that gathers weekly, celebrating every smash, every laugh, and the pure joy of badminton. Explore our shared moments and the memories we've built together.
 			</p>
 			
-			<div class="hidden lg:flex flex-wrap items-center gap-6 text-sm font-medium">
-				<a href="/" onclick={(e) => scrollToSection(e, null)} class="text-white/60 hover:text-white transition-colors">Home</a>
-				<a href="#gallery" onclick={(e) => scrollToSection(e, 'gallery')} class="text-white transition-colors border-b-2 border-white pb-1">Gallery</a>
-				<a href="#schedule" onclick={(e) => scrollToSection(e, 'schedule')} class="text-white/60 hover:text-white transition-colors">Schedule</a>
-				<a href="#location" onclick={(e) => scrollToSection(e, 'location')} class="text-white/60 hover:text-white transition-colors">Location</a>
-				<a href="#faq" onclick={(e) => scrollToSection(e, 'faq')} class="text-white/60 hover:text-white transition-colors">FAQ</a>
-				<a href="#contact" onclick={(e) => scrollToSection(e, 'contact')} class="text-white/60 hover:text-white transition-colors">Contact</a>
+			<div class="mt-4 flex flex-col gap-1 opacity-40">
+				<span class="text-[10px] font-black tracking-[0.3em] text-white">MEMORIES / 2026</span>
+				<span class="text-[10px] font-black tracking-[0.3em] text-white">COMMUNITY GALLERY</span>
 			</div>
 			
-			<div class="lg:absolute bottom-12 left-12 xl:left-16 hidden lg:flex flex-col items-center opacity-70">
-				<span class="text-xs text-white uppercase tracking-widest mb-2 font-medium">Scroll to Explore</span>
-				<div class="w-px h-8 bg-white/50"></div>
+			<div class="lg:absolute bottom-12 left-12 xl:left-16 hidden lg:flex flex-col items-center opacity-70 mt-20">
+				<span class="text-[10px] text-white uppercase tracking-[0.3em] mb-4 font-black">Scroll to Explore</span>
+				<div class="w-px h-12 bg-white/30"></div>
 			</div>
 		</div>
 
@@ -367,11 +436,16 @@
 		<div class="w-full lg:w-2/3 bg-bg p-4 sm:p-6 lg:p-8 min-h-screen">
 			<div class="columns-2 md:columns-3 gap-4 lg:gap-6 space-y-4 lg:space-y-6">
 				{#each combinedGallery as img, i}
-					<div class="break-inside-avoid relative group rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl transition-all duration-500 animate-scale-in">
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div 
+						class="break-inside-avoid relative group rounded-2xl overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl transition-all duration-500 animate-scale-in"
+						onclick={() => openLightbox(img)}
+					>
 						<img 
 							src={img.url} 
 							alt="Gallery moment {i}"
-							class="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-105"
+							class="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-105 [will-change:transform]"
 							loading="lazy"
 						/>
 						<div class="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -382,6 +456,38 @@
 			</div>
 		</div>
 	</section>
+
+	<!-- Lightbox Component -->
+	{#if selectedImage}
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div 
+			class="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-5 sm:p-10 animate-fade-in"
+			onclick={closeLightbox}
+		>
+			<button 
+				class="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center backdrop-blur-md transition-all z-[110]"
+				onclick={closeLightbox}
+			>
+				<X size={24} />
+			</button>
+			
+			<div 
+				class="relative max-w-5xl w-full max-h-full flex flex-col items-center animate-scale-in"
+				onclick={(e) => e.stopPropagation()}
+			>
+				<img 
+					src={selectedImage.url} 
+					alt="Preview" 
+					class="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+				/>
+				<div class="mt-6 text-center">
+					<p class="text-white text-lg font-bold">{selectedImage.date}</p>
+					<p class="text-white/50 text-xs mt-1 uppercase tracking-widest">Badminton Community Moments</p>
+				</div>
+			</div>
+		</div>
+	{/if}
 
 	<div class="max-w-5xl mx-auto px-5 pt-16">
 
@@ -406,7 +512,7 @@
 			<!-- Google Maps Embed -->
 			<iframe
 				title="Axton Badminton Hall Location"
-				src={appConfig.maps_embed_url}
+				src={db.settings?.maps_url || appConfig.maps_embed_url}
 				class="w-full h-52 border-0"
 				allowfullscreen=""
 				loading="lazy"

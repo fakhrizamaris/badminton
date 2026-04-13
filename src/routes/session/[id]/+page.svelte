@@ -28,7 +28,7 @@
 		QrCode,
 		Check,
 		CheckCircle,
-		Clock,
+		Clock as ClockIcon,
 		X,
 		Info,
 		Feather,
@@ -98,11 +98,16 @@
 		return costOwnRacket;
 	});
 
-	// Derived pricing
-	let courtShare = $derived(calcCourtShare(session, sessionParticipants));
-	let racketShare = $derived(calcRacketShare(session, sessionParticipants));
-	let costOwnRacket = $derived(calcPlayerCost(session, sessionParticipants, false));
-	let costRentRacket = $derived(calcPlayerCost(session, sessionParticipants, true));
+	// Derived pricing (Projected including current user if not joined)
+	let projectedParticipants = $derived(myRegistration 
+		? sessionParticipants 
+		: [...sessionParticipants, { name: 'Prospective', needs_racket: needsRacket }]
+	);
+
+	let courtShare = $derived(calcCourtShare(session, projectedParticipants));
+	let racketShare = $derived(calcRacketShare(session, projectedParticipants));
+	let costOwnRacket = $derived(calcPlayerCost(session, projectedParticipants, false));
+	let costRentRacket = $derived(calcPlayerCost(session, projectedParticipants, true));
 	let totalCost = $derived(calcTotalCost(session));
 	let rentersCount = $derived(sessionParticipants.filter((p) => p.needs_racket).length);
 
@@ -359,11 +364,11 @@
 							{:else if myRegistration.payment_proof_url}
 								<div class="flex flex-col items-end gap-1">
 									<div class="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center border border-warning/30 text-warning mb-1">
-										<Clock size={18} />
+										<ClockIcon size={18} />
 									</div>
 									<p class="text-[10px] font-bold text-warning uppercase tracking-widest text-center">In Review</p>
 								</div>
-							{:else}
+							{:else if session.is_locked}
 								<button 
 									onclick={() => openPayment(myRegistration.id, myRegistration.needs_racket)}
 									class="flex flex-col items-end gap-2 group/btn"
@@ -373,6 +378,13 @@
 										Pay Fees
 									</div>
 								</button>
+							{:else}
+								<div class="text-right">
+									<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold text-white/60 uppercase tracking-widest">
+										Waiting for Lock
+									</span>
+									<p class="text-[8px] text-white/30 mt-1 uppercase">Bayar setelah RSVP Ditutup</p>
+								</div>
 							{/if}
 						</div>
 					</div>
@@ -442,10 +454,10 @@
 					</div>
 					<div class="flex justify-between text-xs font-black pt-2 border-t {session.is_locked ? 'border-white/10' : 'border-border/30'}">
 						<span class={session.is_locked ? 'text-white/50' : 'text-text-tertiary'}>
-							GRAND TOTAL
+							{session.is_locked ? 'TOTAL PER ORANG' : 'ESTIMASI TOTAL'}
 						</span>
 						<span class={session.is_locked ? 'text-white' : 'text-navy'}>
-							{formatCurrency(totalCost)}
+							{formatCurrency(calcPlayerCost(session, projectedParticipants, myRegistration?.needs_racket ?? needsRacket))}
 						</span>
 					</div>
 				</div>
@@ -495,7 +507,7 @@
 				</div>
 
 				<p class="text-[11px] text-text-tertiary mb-4 leading-relaxed">
-					Please confirm with the Admin/Group before RSVPing to ensure the court booking is synchronized.
+					RSVP ini **GRATIS**. Anda baru akan diminta melakukan pembayaran setelah jadwal dikunci (Locked) oleh Admin dengan harga final yang sudah dibagi rata.
 				</p>
 
 				<!-- Success Toast -->
@@ -549,10 +561,13 @@
 					</div>
 
 					<!-- Cost preview -->
-					<div class="p-3 rounded-2xl bg-navy/5 text-center">
-						<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-medium">Your estimated cost</p>
-						<p class="text-lg font-bold text-navy mt-0.5">
-							{formatCurrency(calcPlayerCost(session, sessionParticipants, needsRacket))}
+					<div class="p-4 rounded-2xl bg-navy/5 text-center border border-navy/10">
+						<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-bold mb-1">Estimasi Harga Jika Kamu Join</p>
+						<p class="text-2xl font-black text-navy">
+							{formatCurrency(calcPlayerCost(session, projectedParticipants, needsRacket))}
+						</p>
+						<p class="text-[9px] text-text-secondary mt-1 italic">
+							*Semakin banyak yang join, harga akan semakin murah!
 						</p>
 					</div>
 
@@ -582,18 +597,18 @@
 					{:else}
 						<div class="space-y-3 animate-fade-in">
 							<p class="text-[10px] font-bold text-text-secondary uppercase tracking-widest text-center">Enter your 6-digit Ticket ID</p>
-							<div class="flex gap-2">
+							<div class="flex flex-col sm:flex-row gap-2">
 								<input 
 									type="text" 
 									bind:value={recoverTicketId}
-									placeholder="e.g. XJ29S1"
-									class="flex-1 px-4 py-2 bg-bg rounded-xl border border-border/50 text-sm font-mono text-center uppercase focus:ring-2 focus:ring-navy/20 focus:outline-none"
+									placeholder="CONTOH: XJ29S1"
+									class="flex-1 px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm font-mono text-center uppercase focus:ring-2 focus:ring-navy/20 focus:outline-none"
 								/>
 								<button 
 									onclick={() => findAndClaimTicket(recoverTicketId)}
-									class="px-4 py-2 bg-navy text-white text-xs font-bold rounded-xl active:scale-95 transition-all"
+									class="px-6 py-3 bg-navy text-white text-xs font-bold rounded-2xl active:scale-95 transition-all shadow-md"
 								>
-									Find
+									Cari Tiket
 								</button>
 							</div>
 							{#if recoverError}
@@ -641,7 +656,7 @@
 									{:else}
 										<span class="text-[10px] text-text-tertiary flex items-center gap-1"><Feather size={10} /> Own racket</span>
 									{/if}
-									<span class="text-[10px] text-text-tertiary font-medium">· {formatCurrency(playerCost)}</span>
+									<span class="text-[10px] text-text-tertiary font-medium">· {formatCurrency(calcPlayerCost(session, sessionParticipants, participant?.needs_racket ?? false))}</span>
 								</div>
 							</div>
 
@@ -657,7 +672,7 @@
 										onclick={() => openPayment(participant?.id, participant?.needs_racket ?? false)}
 										class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-danger/10 text-danger text-[11px] font-semibold hover:bg-danger/20 transition-colors active:scale-95"
 									>
-										<Clock size={12} />
+										<ClockIcon size={12} />
 										Unpaid
 									</button>
 								{/if}

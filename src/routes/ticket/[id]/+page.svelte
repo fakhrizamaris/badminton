@@ -12,7 +12,7 @@
 		ArrowLeft, 
 		Download, 
 		ShieldCheck, 
-		Clock, 
+		Clock as ClockIcon, 
 		MapPin, 
 		Calendar, 
 		Users,
@@ -63,6 +63,25 @@
 			});
 		}
 	}
+	let qrCanvas;
+	
+	onMount(async () => {
+		if (participant) {
+			try {
+				const QRCode = (await import('https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm')).default;
+				await QRCode.toCanvas(qrCanvas, window.location.href, {
+					width: 140,
+					margin: 0,
+					color: {
+						dark: '#15335E',
+						light: '#FFFFFF00'
+					}
+				});
+			} catch (err) {
+				console.error('QR Generate error:', err);
+			}
+		}
+	});
 </script>
 
 <svelte:head>
@@ -79,7 +98,7 @@
 	{:else if !participant}
 		<div class="pt-32 text-center">
 			<div class="w-20 h-20 bg-danger/10 text-danger rounded-full flex items-center justify-center mx-auto mb-6">
-				<Clock size={40} />
+				<ClockIcon size={40} />
 			</div>
 			<h2 class="text-xl font-bold text-text-primary mb-2">Ticket Not Found</h2>
 			<p class="text-sm text-text-tertiary mb-8">The ticket ID might be incorrect or has expired.</p>
@@ -113,7 +132,7 @@
 						</div>
 					{:else}
 						<div class="bg-warning text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-xl shadow-warning/30 flex items-center gap-2">
-							<Clock size={12} strokeWidth={3} />
+							<ClockIcon size={12} strokeWidth={3} />
 							Payment Pending
 						</div>
 					{/if}
@@ -126,12 +145,23 @@
 				<div class="absolute -left-4 -bottom-4 w-8 h-8 bg-bg border-r border-border/20 rounded-full"></div>
 				<div class="absolute -right-4 -bottom-4 w-8 h-8 bg-bg border-l border-border/20 rounded-full"></div>
 
-				<div class="w-24 h-24 rounded-full bg-navy/5 flex items-center justify-center mb-5 border-4 border-white shadow-lg ring-1 ring-navy/5">
+				{#if participant.has_paid}
+					<div class="absolute top-4 right-4 rotate-12 opacity-10">
+						<ShieldCheck size={120} class="text-success" />
+					</div>
+				{/if}
+
+				<div class="w-24 h-24 rounded-full bg-navy/5 flex items-center justify-center mb-5 border-4 border-white shadow-lg ring-1 ring-navy/5 relative group">
 					<span class="text-4xl font-black text-navy">{participant.name.charAt(0).toUpperCase()}</span>
+					{#if participant.has_paid}
+						<div class="absolute -bottom-1 -right-1 w-8 h-8 bg-success text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+							<ShieldCheck size={16} />
+						</div>
+					{/if}
 				</div>
 
 				<h3 class="text-xl sm:text-2xl font-black text-text-primary mb-1 text-center leading-tight break-words px-4 w-full">{participant.name}</h3>
-				<p class="text-text-tertiary text-[10px] font-semibold mb-6 sm:mb-10">#{participant.ticket_id}</p>
+				<p class="text-navy text-[10px] font-black tracking-[0.2em] mb-6 sm:mb-10 bg-navy/5 px-4 py-1 rounded-full border border-navy/10">ID: {participant.ticket_id}</p>
 
 				<div class="grid grid-cols-2 gap-x-10 gap-y-8 w-full">
 					<div class="text-left">
@@ -140,7 +170,7 @@
 					</div>
 					<div class="text-right">
 						<p class="text-[9px] font-black text-text-tertiary uppercase tracking-widest mb-1.5">Court</p>
-						<p class="text-xs font-bold text-text-primary">Hall A - Court {session?.court_count}</p>
+						<p class="text-xs font-bold text-text-primary">Axton - Ct {session?.court_count || 1}</p>
 					</div>
 					<div class="text-left">
 						<p class="text-[9px] font-black text-text-tertiary uppercase tracking-widest mb-1.5">Schedule</p>
@@ -151,35 +181,39 @@
 					</div>
 					<div class="text-right">
 						<p class="text-[9px] font-black text-text-tertiary uppercase tracking-widest mb-1.5">Total Bill</p>
-						<p class="text-sm font-black text-navy">{formatCurrency(calcPlayerCost(session, [], participant.needs_racket) + participant.unique_code)}</p>
+						<p class="text-sm font-black text-navy">{formatCurrency(calcPlayerCost(session, [], participant.needs_racket) + (participant.unique_code || 0))}</p>
 					</div>
 				</div>
 			</div>
 
-			<!-- Bottom Section: Barcode/Security -->
+			<!-- Bottom Section: QR Code / Security -->
 			<div class="p-8 flex flex-col items-center bg-gray-50/50">
-				<!-- Mock Barcode -->
-				<div class="w-full flex items-end gap-[2px] h-14 mb-4">
-					{#each Array(44) as _, i}
-						{@const height = (Math.sin(i * 0.5) * 20 + 70)}
-						<div class="flex-1 bg-black rounded-full" style="height: {height}%"></div>
-					{/each}
+				<!-- Real QR Code -->
+				<div class="relative mb-6 p-2 bg-white rounded-2xl shadow-sm border border-border/50">
+					<canvas bind:this={qrCanvas} class="w-32 h-32"></canvas>
+					{#if participant.has_paid}
+						<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+							<div class="w-10 h-10 bg-white rounded-xl shadow-xl flex items-center justify-center border border-success/20">
+								<ShieldCheck size={24} class="text-success" />
+							</div>
+						</div>
+					{/if}
 				</div>
 				
 				<div class="flex items-center gap-6 mt-2">
 					<div class="text-center">
 						<p class="text-[8px] font-bold text-text-tertiary uppercase tracking-tighter mb-0.5">Player Class</p>
-						<p class="text-[10px] font-black text-text-primary uppercase">{participant.needs_racket ? 'Renter' : 'Reg'}</p>
+						<p class="text-[10px] font-black text-text-primary uppercase">{participant.needs_racket ? 'Renter' : 'Owner'}</p>
 					</div>
 					<div class="w-px h-6 bg-border/50"></div>
 					<div class="text-center">
-						<p class="text-[8px] font-bold text-text-tertiary uppercase tracking-tighter mb-0.5">Gate</p>
+						<p class="text-[8px] font-bold text-text-tertiary uppercase tracking-tighter mb-0.5">Verifier</p>
 						<p class="text-[10px] font-black text-text-primary uppercase">GOR</p>
 					</div>
 					<div class="w-px h-6 bg-border/50"></div>
 					<div class="text-center">
-						<p class="text-[8px] font-bold text-text-tertiary uppercase tracking-tighter mb-0.5">Ref Code</p>
-						<p class="text-[10px] font-black text-text-primary uppercase">{participant.unique_code}</p>
+						<p class="text-[8px] font-bold text-text-tertiary uppercase tracking-tighter mb-0.5">Audit Code</p>
+						<p class="text-[10px] font-black text-text-primary uppercase">{participant.unique_code || '---'}</p>
 					</div>
 				</div>
 			</div>
@@ -193,7 +227,7 @@
 			>
 				<Download size={18} />
 				<span class="sm:inline hidden">Save PDF</span>
-				<span class="sm:hidden inline">Download</span>
+				<span class="sm:hidden inline">Pass</span>
 			</button>
 			<button 
 				onclick={() => addToCalendar(session)}
@@ -213,7 +247,7 @@
 
 		<footer class="mt-12 text-center no-print">
 			<p class="text-[11px] text-text-tertiary max-w-[240px] leading-relaxed">
-				Tunjukkan Pass ini (fisik atau digital) kepada PIC lapangan untuk verifikasi akhir.
+				Tunjukkan QR Code ini kepada PIC lapangan untuk verifikasi kehadiran.
 			</p>
 		</footer>
 	{/if}

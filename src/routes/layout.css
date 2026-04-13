@@ -127,3 +127,31 @@
 .stagger > :nth-child(6) { animation-delay: 300ms; }
 .stagger > :nth-child(7) { animation-delay: 360ms; }
 .stagger > :nth-child(8) { animation-delay: 420ms; }
+
+/* Floating Animation for Hero Stats */
+@keyframes float {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-10px); }
+}
+
+@keyframes float-slow {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-15px); }
+}
+
+@keyframes float-fast {
+	0%, 100% { transform: translateY(0); }
+	50% { transform: translateY(-7px); }
+}
+
+.animate-float {
+	animation: float 4s ease-in-out infinite;
+}
+
+.animate-float-slow {
+	animation: float-slow 6s ease-in-out infinite;
+}
+
+.animate-float-fast {
+	animation: float-fast 3s ease-in-out infinite;
+}
