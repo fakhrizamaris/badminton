@@ -26,9 +26,9 @@ export const db = $state({
  * @returns {string}
  */
 function getDateFolderName(date = new Date()) {
-	const day   = String(date.getDate()).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
 	const month = date.toLocaleString('en-US', { month: 'long' }); // "April"
-	const year  = date.getFullYear();
+	const year = date.getFullYear();
 	return `${day}-${month}-${year}`;
 }
 
@@ -114,9 +114,9 @@ export async function initDB() {
 			applyTheme(savedTheme);
 
 			const [pRes, gRes, setRes] = await backgroundPromise;
-			if (pRes.data)  db.participants = pRes.data;
-			if (gRes.data)  db.gallery      = gRes.data;
-			if (setRes.data) db.settings    = setRes.data || db.settings;
+			if (pRes.data) db.participants = pRes.data;
+			if (gRes.data) db.gallery = gRes.data;
+			if (setRes.data) db.settings = setRes.data || db.settings;
 			console.log('🏁 DB Ready');
 
 		} catch (err) {
@@ -225,14 +225,14 @@ export async function uploadGalleryImages(files) {
 	for (let i = 0; i < files.length; i++) {
 		const file = files[i];
 
-		console.log(`[${i+1}/${files.length}] Compressing "${file.name}"...`);
+		console.log(`[${i + 1}/${files.length}] Compressing "${file.name}"...`);
 		const compressed = await compressImage(file, 'gallery');
 
 		// Nama file unik: "<timestamp>-<random>.webp"
-		const suffix   = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+		const suffix = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 		const filePath = `${folderName}/${suffix}.webp`;
 
-		console.log(`[${i+1}/${files.length}] Uploading → ${filePath}`);
+		console.log(`[${i + 1}/${files.length}] Uploading → ${filePath}`);
 		const { error: uploadError } = await safeUpload('gallery', filePath, compressed, {
 			contentType: 'image/webp'
 		});
@@ -242,15 +242,15 @@ export async function uploadGalleryImages(files) {
 		const { data: urlData } = supabase.storage.from('gallery').getPublicUrl(filePath);
 		const cleanUrl = urlData.publicUrl;
 
-		console.log(`[${i+1}/${files.length}] Simpan ke DB → ${cleanUrl}`);
+		console.log(`[${i + 1}/${files.length}] Simpan ke DB → ${cleanUrl}`);
 		const { error: dbError } = await supabase.from('gallery').insert([{
-			url:     cleanUrl,
+			url: cleanUrl,
 			caption: '',
-			folder:  folderName   // disimpan untuk keperluan grouping di UI
+			folder: folderName   // disimpan untuk keperluan grouping di UI
 		}]);
 		if (dbError) throw dbError;
 
-		console.log(`✅ [${i+1}/${files.length}] Done`);
+		console.log(`✅ [${i + 1}/${files.length}] Done`);
 	}
 
 	// Refresh state
@@ -263,10 +263,10 @@ export async function deleteGalleryImage(id, url) {
 	try {
 		// Ambil path relatif dari URL publik Supabase
 		// Format URL: https://xxx.supabase.co/storage/v1/object/public/gallery/13-April-2026/file.webp
-		const cleanUrl  = url.split('?')[0];
-		const marker    = '/object/public/gallery/';
-		const idx       = cleanUrl.indexOf(marker);
-		const filePath  = idx !== -1
+		const cleanUrl = url.split('?')[0];
+		const marker = '/object/public/gallery/';
+		const idx = cleanUrl.indexOf(marker);
+		const filePath = idx !== -1
 			? cleanUrl.substring(idx + marker.length)   // "13-April-2026/file.webp"
 			: cleanUrl.split('/').pop();                  // fallback: filename saja
 
@@ -289,7 +289,7 @@ export async function deleteGalleryImage(id, url) {
 
 export async function updateQRIS(file) {
 	const compressed = await compressImage(file, 'proof');
-	const filePath   = `settings/qris-${Date.now()}.webp`;
+	const filePath = `settings/qris-${Date.now()}.webp`;
 
 	const { error: upErr } = await safeUpload('gallery', filePath, compressed, {
 		contentType: 'image/webp'
@@ -318,10 +318,10 @@ export async function updateMapsUrl(newUrl) {
 
 	const { error } = await supabase
 		.from('settings')
-		.upsert({ 
+		.upsert({
 			id: 'global',
-			maps_url: cleanUrl, 
-			updated_at: new Date().toISOString() 
+			maps_url: cleanUrl,
+			updated_at: new Date().toISOString()
 		});
 
 	if (!error) {
@@ -336,7 +336,7 @@ export async function updateMapsUrl(newUrl) {
 
 export async function uploadPaymentProof(participantId, file) {
 	const compressed = await compressImage(file, 'proof');
-	const filePath   = `payment/proof-${participantId}-${Date.now()}.webp`;
+	const filePath = `payment/proof-${participantId}-${Date.now()}.webp`;
 
 	const { error: upErr } = await safeUpload('proofs', filePath, compressed, {
 		contentType: 'image/webp'
@@ -348,9 +348,9 @@ export async function uploadPaymentProof(participantId, file) {
 	// Perbarui URL dan set status ke 'pending'
 	const { error: dbErr } = await supabase
 		.from('participants')
-		.update({ 
+		.update({
 			payment_proof_url: publicUrl,
-			payment_status: 'pending' 
+			payment_status: 'pending'
 		})
 		.eq('id', participantId);
 	if (dbErr) throw dbErr;
@@ -395,19 +395,19 @@ async function compressImage(file, type = 'gallery') {
 
 			img.onload = () => {
 				try {
-					const MAX_W   = type === 'gallery' ? 1200 : 800;
-					const QUALITY = type === 'gallery' ? 0.82  : 0.65;
+					const MAX_W = type === 'gallery' ? 1200 : 800;
+					const QUALITY = type === 'gallery' ? 0.82 : 0.65;
 					let { width, height } = img;
 
 					if (!width || !height) { resolve(file); return; }
 
 					if (width > MAX_W) {
 						height = Math.round(height * MAX_W / width);
-						width  = MAX_W;
+						width = MAX_W;
 					}
 
 					const canvas = document.createElement('canvas');
-					canvas.width  = width;
+					canvas.width = width;
 					canvas.height = height;
 
 					const ctx = canvas.getContext('2d');
@@ -429,9 +429,9 @@ async function compressImage(file, type = 'gallery') {
 							resolve(file);
 							return;
 						}
-						const baseName   = file.name.replace(/\.[^/.]+$/, '');
+						const baseName = file.name.replace(/\.[^/.]+$/, '');
 						const compressed = new File([blob], `${baseName}.webp`, { type: 'image/webp' });
-						console.log(`🗜️ ${(file.size/1024).toFixed(1)}KB → ${(compressed.size/1024).toFixed(1)}KB`);
+						console.log(`🗜️ ${(file.size / 1024).toFixed(1)}KB → ${(compressed.size / 1024).toFixed(1)}KB`);
 						resolve(compressed);
 					}, 'image/webp', QUALITY);
 
@@ -470,15 +470,15 @@ export async function addParticipant(sessionId, name, needsRacket) {
 	);
 	if (dup) { console.error('Duplicate participant'); return null; }
 
-	const ticketId   = generateTicketId();
+	const ticketId = generateTicketId();
 	const uniqueCode = generateUniqueCode();
 
 	const { data, error } = await supabase
 		.from('participants')
-		.insert([{ 
-			session_id: sessionId, 
-			name, 
-			needs_racket: needsRacket, 
+		.insert([{
+			session_id: sessionId,
+			name,
+			needs_racket: needsRacket,
 			has_paid: false,
 			ticket_id: ticketId,
 			unique_code: uniqueCode
@@ -518,11 +518,11 @@ export async function togglePaid(participantId) {
 	if (!p) return;
 	const newStatus = !p.has_paid;
 	const updateData = { has_paid: newStatus };
-	
+
 	// Jika diverifikasi (jadi lunas), set status ke 'verified'
 	if (newStatus) updateData.payment_status = 'verified';
 	else updateData.payment_status = 'pending'; // Jika dicabut verifikasinya
-	
+
 	const { error } = await supabase.from('participants').update(updateData).eq('id', participantId);
 	if (!error) {
 		p.has_paid = newStatus;
@@ -533,17 +533,17 @@ export async function togglePaid(participantId) {
 export async function rejectPayment(participantId) {
 	const p = db.participants.find(p => p.id === participantId);
 	if (!p) return;
-	
+
 	// Set status ke 'rejected', has_paid ke false, dan HAPUS bukti agar keluar dari antrean admin
 	const { error } = await supabase
 		.from('participants')
-		.update({ 
+		.update({
 			payment_status: 'rejected',
 			has_paid: false,
-			payment_proof_url: null 
+			payment_proof_url: null
 		})
 		.eq('id', participantId);
-		
+
 	if (!error) {
 		p.payment_status = 'rejected';
 		p.has_paid = false;
@@ -576,8 +576,8 @@ export async function createSession(title, date, time, subtitle, courtCount, rac
 export async function deleteSession(sessionId) {
 	const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
 	if (!error) {
-		db.sessions      = db.sessions.filter(s => s.id !== sessionId);
-		db.participants  = db.participants.filter(p => p.session_id !== sessionId);
+		db.sessions = db.sessions.filter(s => s.id !== sessionId);
+		db.participants = db.participants.filter(p => p.session_id !== sessionId);
 	} else {
 		console.error('Gagal hapus sesi:', error);
 	}
@@ -661,7 +661,7 @@ export function isRSVPOpen(session) {
 	if (!session?.date) return false;
 	try {
 		const { hours, minutes } = parseSessionHour((session.time || '00:00').split(' - ')[0]);
-		const d = new Date(`${session.date}T${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:00`);
+		const d = new Date(`${session.date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`);
 		if (isNaN(d.getTime())) return true;
 		return (d - new Date()) / 3_600_000 > 2;
 	} catch { return true; }
@@ -672,7 +672,7 @@ export function isSessionPassed(session) {
 	try {
 		const parts = (session.time || '00:00').split(' - ');
 		const { hours, minutes } = parseSessionHour(parts.length > 1 ? parts[1] : parts[0]);
-		const d = new Date(`${session.date}T${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:00`);
+		const d = new Date(`${session.date}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`);
 		if (isNaN(d.getTime())) return false;
 		return new Date() > d;
 	} catch { return false; }
@@ -695,10 +695,10 @@ export function triggerHaptic(type = 'medium') {
 
 export function addToCalendar(session) {
 	if (!session) return;
-	const date      = session.date.replace(/-/g, '');
-	const parts     = (session.time || '19:00 - 21:00').split(' - ');
+	const date = session.date.replace(/-/g, '');
+	const parts = (session.time || '19:00 - 21:00').split(' - ');
 	const startTime = parts[0].replace(':', '') + '00';
-	const endTime   = (parts[1] || '21:00').replace(':', '') + '00';
+	const endTime = (parts[1] || '21:00').replace(':', '') + '00';
 	window.open(
 		`https://www.google.com/calendar/render?action=TEMPLATE` +
 		`&text=${encodeURIComponent('Badminton: ' + session.title)}` +
