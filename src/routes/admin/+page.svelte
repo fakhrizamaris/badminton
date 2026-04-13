@@ -14,6 +14,7 @@
 		deleteGalleryImage,
 		updateQRIS,
 		deleteSession,
+		toggleSessionShuttlecock,
 		isSessionPassed,
 		getCommunityStats,
 		triggerConfetti,
@@ -119,6 +120,7 @@
 	let newSubtitle = $state('Mixed Levels');
 	let newCourts   = $state(1);
 	let newRackets  = $state(0);
+	let newBuyShuttlecock = $state(false);
 	let formError   = $state('');
 	let showCreateForm = $state(false);
 
@@ -248,11 +250,14 @@
 		if (!newDate)         { formError = 'Tanggal wajib diisi'; return; }
 
 		const finalTime = newEndTime ? `${newTime} - ${newEndTime}` : newTime;
-		await createSession(newTitle.trim(), newDate, finalTime, newSubtitle, newCourts, newRackets);
+		const created = await createSession(newTitle.trim(), newDate, finalTime, newSubtitle, newCourts, newRackets);
+		if (created && newBuyShuttlecock) {
+			await toggleSessionShuttlecock(created.id);
+		}
 
 		newTitle = ''; newDate = new Date().toISOString().split('T')[0];
 		newTime = '19:00'; newEndTime = '21:00';
-		newSubtitle = 'Mixed Levels'; newCourts = 1; newRackets = 0;
+		newSubtitle = 'Mixed Levels'; newCourts = 1; newRackets = 0; newBuyShuttlecock = false;
 		formError = ''; showCreateForm = false;
 	}
 
@@ -495,6 +500,24 @@
 							class="w-full px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20 transition-all" />
 					</div>
 				</div>
+				<div class="flex items-center justify-between p-3 bg-bg rounded-2xl border border-border/50">
+					<div>
+						<p class="text-sm font-medium text-text-primary">Beli shuttlecock sesi ini?</p>
+						<p class="text-xs text-text-tertiary mt-0.5">Tambahan biaya tetap Rp 140.000/sesi, dibagi rata peserta.</p>
+					</div>
+					<button
+						type="button"
+						role="switch"
+						aria-label="Toggle pembelian shuttlecock"
+						aria-checked={newBuyShuttlecock}
+						onclick={() => (newBuyShuttlecock = !newBuyShuttlecock)}
+						class="relative w-12 h-7 rounded-full transition-colors duration-200 {newBuyShuttlecock ? 'bg-navy' : 'bg-text-tertiary/30'}"
+					>
+						<span
+							class="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow-sm transition-transform duration-200 {newBuyShuttlecock ? 'translate-x-5' : 'translate-x-0'}"
+						></span>
+					</button>
+				</div>
 				{#if formError}
 					<p class="text-xs text-danger font-medium animate-scale-in">{formError}</p>
 				{/if}
@@ -719,10 +742,18 @@
 										<span>·</span>
 										<span>{session.racket_count} racket{session.racket_count !== 1 ? 's' : ''}</span>
 										<span>·</span>
+										<span>{session.buy_shuttlecock ? 'shuttlecock on' : 'shuttlecock off'}</span>
+										<span>·</span>
 										<span class="font-medium text-navy/70">{formatCurrency(total)}</span>
 									</div>
 								</div>
 								<div class="flex items-center gap-1.5 sm:gap-2">
+									<button
+										onclick={async () => await toggleSessionShuttlecock(session.id)}
+										class="px-2.5 h-8 sm:h-9 rounded-xl text-[10px] sm:text-xs font-semibold border transition-all active:scale-90 {session.buy_shuttlecock ? 'bg-navy/10 text-navy border-navy/20' : 'bg-bg text-text-secondary border-border/60'}"
+									>
+										{session.buy_shuttlecock ? 'Shuttlecock: ON' : 'Shuttlecock: OFF'}
+									</button>
 									<button
 										onclick={async () => { 
 											const confirmed = await askConfirm({

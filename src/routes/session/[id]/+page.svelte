@@ -8,8 +8,10 @@
 		markPaid,
 		calcCourtShare,
 		calcRacketShare,
+		calcShuttlecockShare,
 		calcTotalCost,
 		calcPlayerCost,
+		SHUTTLECOCK_PRICE,
 		isRSVPOpen,
 		initDB,
 		db,
@@ -106,6 +108,7 @@
 
 	let courtShare = $derived(calcCourtShare(session, projectedParticipants));
 	let racketShare = $derived(calcRacketShare(session, projectedParticipants));
+	let shuttlecockShare = $derived(calcShuttlecockShare(session, projectedParticipants));
 	let costOwnRacket = $derived(calcPlayerCost(session, projectedParticipants, false));
 	let costRentRacket = $derived(calcPlayerCost(session, projectedParticipants, true));
 	let totalCost = $derived(calcTotalCost(session));
@@ -383,7 +386,7 @@
 									<span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[9px] font-bold text-white/60 uppercase tracking-widest">
 										Waiting for Lock
 									</span>
-									<p class="text-[8px] text-white/30 mt-1 uppercase">Bayar setelah RSVP Ditutup</p>
+									<p class="text-[8px] text-white/30 mt-1 uppercase">Pay After RSVP Closes</p>
 								</div>
 							{/if}
 						</div>
@@ -452,6 +455,24 @@
 							{formatCurrency(session.racket_count * 20000)}
 						</span>
 					</div>
+					<div class="flex justify-between text-[10px] uppercase tracking-wider font-bold">
+						<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
+							Shuttlecock
+						</span>
+						<span class={session.is_locked ? 'text-white/60' : 'text-text-secondary'}>
+							{session.buy_shuttlecock ? formatCurrency(SHUTTLECOCK_PRICE) : formatCurrency(0)}
+						</span>
+					</div>
+					{#if session.buy_shuttlecock}
+						<div class="flex justify-between text-[10px] uppercase tracking-wider font-bold">
+							<span class={session.is_locked ? 'text-white/40' : 'text-text-tertiary'}>
+								Shuttlecock / Person
+							</span>
+							<span class={session.is_locked ? 'text-white/60' : 'text-text-secondary'}>
+								{formatCurrency(shuttlecockShare)}
+							</span>
+						</div>
+					{/if}
 					<div class="flex justify-between text-xs font-black pt-2 border-t {session.is_locked ? 'border-white/10' : 'border-border/30'}">
 						<span class={session.is_locked ? 'text-white/50' : 'text-text-tertiary'}>
 							{session.is_locked ? 'TOTAL PER ORANG' : 'ESTIMASI TOTAL'}
@@ -477,6 +498,14 @@
 								Court fees are split <strong>equally among everyone</strong>. Racket fees only apply to <strong>those who rent</strong>.
 							</p>
 						</div>
+						{#if session.buy_shuttlecock}
+							<div class="flex items-start gap-2 pt-2 border-t border-navy/10">
+								<div class="w-1.5 h-1.5 rounded-full bg-navy mt-1.5 flex-shrink-0"></div>
+								<p class="text-[11px] text-text-secondary leading-relaxed">
+									Shuttlecock purchase fee (<strong>{formatCurrency(SHUTTLECOCK_PRICE)}</strong>) is enabled and split equally to all players.
+								</p>
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -507,7 +536,7 @@
 				</div>
 
 				<p class="text-[11px] text-text-tertiary mb-4 leading-relaxed">
-					RSVP ini **GRATIS**. Anda baru akan diminta melakukan pembayaran setelah jadwal dikunci (Locked) oleh Admin dengan harga final yang sudah dibagi rata.
+					This RSVP is <strong>FREE</strong>. You will only be asked to pay after the schedule is locked by the admin, using the final split-bill amount.
 				</p>
 
 				<!-- Success Toast -->
@@ -562,12 +591,12 @@
 
 					<!-- Cost preview -->
 					<div class="p-4 rounded-2xl bg-navy/5 text-center border border-navy/10">
-						<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-bold mb-1">Estimasi Harga Jika Kamu Join</p>
+						<p class="text-[10px] text-text-tertiary uppercase tracking-wider font-bold mb-1">Estimated Cost If You Join</p>
 						<p class="text-2xl font-black text-navy">
 							{formatCurrency(calcPlayerCost(session, projectedParticipants, needsRacket))}
 						</p>
 						<p class="text-[9px] text-text-secondary mt-1 italic">
-							*Semakin banyak yang join, harga akan semakin murah!
+							*The more players join, the cheaper it gets for everyone.
 						</p>
 					</div>
 
@@ -601,14 +630,14 @@
 								<input 
 									type="text" 
 									bind:value={recoverTicketId}
-									placeholder="CONTOH: XJ29S1"
+									placeholder="EXAMPLE: XJ29S1"
 									class="flex-1 px-4 py-3 bg-bg rounded-2xl border border-border/50 text-sm font-mono text-center uppercase focus:ring-2 focus:ring-navy/20 focus:outline-none"
 								/>
 								<button 
 									onclick={() => findAndClaimTicket(recoverTicketId)}
 									class="px-6 py-3 bg-navy text-white text-xs font-bold rounded-2xl active:scale-95 transition-all shadow-md"
 								>
-									Cari Tiket
+									Find Ticket
 								</button>
 							</div>
 							{#if recoverError}

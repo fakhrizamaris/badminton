@@ -77,48 +77,57 @@ export const getCommunityStats = () => stats;
 
 // ── DB Init ───────────────────────────────────────────────────────
 
+let initDBPromise = null;
+
 export async function initDB() {
 	if (db.isReady) return;
+	if (initDBPromise) return initDBPromise;
 
-	try {
-		console.log('🚀 Initializing DB...');
-
-		const sessionPromise = supabase
-			.from('sessions').select('*').order('created_at', { ascending: false });
-
-		const backgroundPromise = Promise.all([
-			supabase.from('participants').select('*').order('created_at', { ascending: true }),
-			supabase.from('gallery').select('*').order('created_at', { ascending: false }),
-			supabase.from('settings').select('*').eq('id', 'global').maybeSingle()
-		]);
-
-		const timeoutPromise = new Promise((_, reject) =>
-			setTimeout(() => reject(new Error('TIMEOUT')), 8000)
-		);
-
+	initDBPromise = (async () => {
 		try {
-			const { data: sData } = await Promise.race([sessionPromise, timeoutPromise]);
-			if (sData) { db.sessions = sData; console.log('✅ Sessions loaded'); }
-		} catch {
-			console.warn('⚠️ Session load timed out.');
+			console.log('🚀 Initializing DB...');
+
+			const sessionPromise = supabase
+				.from('sessions').select('*').order('created_at', { ascending: false });
+
+			const backgroundPromise = Promise.all([
+				supabase.from('participants').select('*').order('created_at', { ascending: true }),
+				supabase.from('gallery').select('*').order('created_at', { ascending: false }),
+				supabase.from('settings').select('*').eq('id', 'global').maybeSingle()
+			]);
+
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+			);
+
+			try {
+				const { data: sData } = await Promise.race([sessionPromise, timeoutPromise]);
+				if (sData) { db.sessions = sData; console.log('✅ Sessions loaded'); }
+			} catch {
+				console.warn('⚠️ Session load timed out.');
+			}
+
+			db.isReady = true;
+
+			const savedTheme = localStorage.getItem('app_theme') || 'light';
+			db.theme = savedTheme;
+			applyTheme(savedTheme);
+
+			const [pRes, gRes, setRes] = await backgroundPromise;
+			if (pRes.data)  db.participants = pRes.data;
+			if (gRes.data)  db.gallery      = gRes.data;
+			if (setRes.data) db.settings    = setRes.data || db.settings;
+			console.log('🏁 DB Ready');
+
+		} catch (err) {
+			console.error('❌ Failed to init DB:', err);
+			db.isReady = true;
+		} finally {
+			initDBPromise = null;
 		}
+	})();
 
-		db.isReady = true;
-
-		const savedTheme = localStorage.getItem('app_theme') || 'light';
-		db.theme = savedTheme;
-		applyTheme(savedTheme);
-
-		const [pRes, gRes, setRes] = await backgroundPromise;
-		if (pRes.data)  db.participants = pRes.data;
-		if (gRes.data)  db.gallery      = gRes.data;
-		if (setRes.data) db.settings    = setRes.data || db.settings;
-		console.log('🏁 DB Ready');
-
-	} catch (err) {
-		console.error('❌ Failed to init DB:', err);
-		db.isReady = true;
-	}
+	return initDBPromise;
 }
 
 function applyTheme(theme) {
@@ -547,7 +556,16 @@ export async function rejectPayment(participantId) {
 export async function createSession(title, date, time, subtitle, courtCount, racketCount) {
 	const { data, error } = await supabase
 		.from('sessions')
-		.insert([{ title, date, time: time || '7PM', subtitle: subtitle || 'Mixed Levels', court_count: courtCount, racket_count: racketCount, is_locked: false }])
+		.insert([{
+			title,
+			date,
+			time: time || '7PM',
+			subtitle: subtitle || 'Mixed Levels',
+			court_count: courtCount,
+			racket_count: racketCount,
+			buy_shuttlecock: false,
+			is_locked: false
+		}])
 		.select();
 
 	if (data?.[0]) { db.sessions = [data[0], ...db.sessions]; return data[0]; }
@@ -565,29 +583,60 @@ export async function deleteSession(sessionId) {
 	}
 }
 
+export async function toggleSessionShuttlecock(sessionId) {
+	const session = getSession(sessionId);
+	if (!session) return;
+
+	const newStatus = !session.buy_shuttlecock;
+	const { error } = await supabase
+		.from('sessions')
+		.update({ buy_shuttlecock: newStatus })
+		.eq('id', sessionId);
+
+	if (!error) {
+		session.buy_shuttlecock = newStatus;
+	} else {
+		console.error('Toggle shuttlecock error:', error);
+	}
+}
+
 // ── Pricing ───────────────────────────────────────────────────────
+
+const COURT_PRICE = 77000;
+const RACKET_PRICE = 20000;
+export const SHUTTLECOCK_PRICE = 140000;
 
 export function calcCourtShare(session, participants) {
 	if (!session || !participants?.length) return 0;
-	return Math.ceil(((session.court_count || 0) * 77000) / participants.length);
+	return Math.ceil(((session.court_count || 0) * COURT_PRICE) / participants.length);
 }
 
 export function calcRacketShare(session, participants) {
 	if (!session || !(session.racket_count > 0)) return 0;
 	const renters = participants?.filter(p => p?.needs_racket) ?? [];
 	if (!renters.length) return 0;
-	return Math.ceil(((session.racket_count) * 20000) / renters.length);
+	return Math.ceil(((session.racket_count) * RACKET_PRICE) / renters.length);
+}
+
+export function calcShuttlecockShare(session, participants) {
+	if (!session?.buy_shuttlecock || !participants?.length) return 0;
+	return Math.ceil(SHUTTLECOCK_PRICE / participants.length);
 }
 
 export function calcPlayerCost(session, participants, needsRacket) {
 	if (!session || !participants) return 0;
 	const court = calcCourtShare(session, participants);
-	return needsRacket ? court + calcRacketShare(session, participants) : court;
+	const shuttlecock = calcShuttlecockShare(session, participants);
+	return needsRacket
+		? court + calcRacketShare(session, participants) + shuttlecock
+		: court + shuttlecock;
 }
 
 export function calcTotalCost(session) {
 	if (!session) return 0;
-	return (session.court_count || 0) * 77000 + (session.racket_count || 0) * 20000;
+	return (session.court_count || 0) * COURT_PRICE
+		+ (session.racket_count || 0) * RACKET_PRICE
+		+ (session?.buy_shuttlecock ? SHUTTLECOCK_PRICE : 0);
 }
 
 // ── Session Timing ────────────────────────────────────────────────
