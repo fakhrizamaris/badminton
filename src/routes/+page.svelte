@@ -967,7 +967,7 @@
 			>
 				<span
 					class="text-text-secondary font-semibold border-b border-border/50 pb-1 mb-1 inline-block"
-					>Coordinators (WhatsApp)</span
+					>Contact Persons (WhatsApp)</span
 				>
 				<div class="flex flex-col gap-2">
 					<a
