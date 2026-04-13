@@ -13,7 +13,7 @@
 		XCircle,
 		Info,
 		AlertTriangle,
-		ExternalLink,
+		Code2,
 		X,
 	} from "lucide-svelte";
 	import { fade, fly, scale } from "svelte/transition";
@@ -60,8 +60,8 @@
 				rel="noopener noreferrer"
 				class="inline-flex items-center gap-1.5 text-[11px] text-text-tertiary hover:text-text-secondary transition-colors"
 			>
-				<ExternalLink size={13} />
-				<span>Source</span>
+				<Code2 size={13} />
+				<span>Behind the Build</span>
 			</a>
 		</div>
 	</footer>

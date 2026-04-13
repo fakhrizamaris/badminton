@@ -946,7 +946,7 @@
 	<!-- Footer / Contact -->
 	<footer
 		id="contact"
-		class="pb-28 pt-8 border-t border-border/50 animate-fade-in-up"
+		class="pb-10 pt-8 border-t border-border/50 animate-fade-in-up"
 		style="animation-delay: 280ms"
 	>
 		<div
