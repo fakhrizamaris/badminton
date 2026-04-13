@@ -265,13 +265,19 @@
 				
 				<!-- RSVP Deadline Status -->
 				{#if !session.is_locked}
-					<div class="mt-1.5 flex items-center gap-2">
+					<div class="mt-1.5 flex items-start gap-2">
 						{#if isRSVPOpen(session)}
-							<div class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></div>
-							<p class="text-[10px] font-bold text-success uppercase tracking-widest">RSVP Open (H-1)</p>
+							<div class="mt-1 w-1.5 h-1.5 rounded-full bg-success animate-pulse flex-shrink-0"></div>
+							<div>
+								<p class="text-[10px] font-bold text-success uppercase tracking-widest">RSVP Open</p>
+								<p class="text-[10px] text-text-tertiary">Open until H-1 (24 hours before session start)</p>
+							</div>
 						{:else}
-							<div class="w-1.5 h-1.5 rounded-full bg-danger"></div>
-							<p class="text-[10px] font-bold text-danger uppercase tracking-widest">Deadline Passed</p>
+							<div class="mt-1 w-1.5 h-1.5 rounded-full bg-danger flex-shrink-0"></div>
+							<div>
+								<p class="text-[10px] font-bold text-danger uppercase tracking-widest">RSVP Closed</p>
+								<p class="text-[10px] text-text-tertiary">Deadline was H-1 (24 hours before session start)</p>
+							</div>
 						{/if}
 					</div>
 				{/if}

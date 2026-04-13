@@ -12,6 +12,8 @@ export const db = $state({
 	gallery: [],
 	settings: { qris_url: null },
 	theme: 'light',
+	isSessionsReady: false,
+	isMetaReady: false,
 	isReady: false,
 	toasts: [],
 	confirm: null
@@ -78,22 +80,72 @@ export const getCommunityStats = () => stats;
 // ── DB Init ───────────────────────────────────────────────────────
 
 let initDBPromise = null;
+const SESSION_CACHE_KEY = 'cached_sessions_v2';
+const SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function readSessionCache() {
+	const raw = localStorage.getItem(SESSION_CACHE_KEY);
+	if (!raw) return null;
+
+	try {
+		const parsed = JSON.parse(raw);
+
+		// Backward compatibility for old cache shape (plain array).
+		if (Array.isArray(parsed)) {
+			return { data: parsed, isFresh: false };
+		}
+
+		if (!Array.isArray(parsed?.data)) return null;
+		const age = Date.now() - (parsed.ts || 0);
+		return { data: parsed.data, isFresh: age <= SESSION_CACHE_TTL_MS };
+	} catch {
+		console.warn('⚠️ Failed to parse cached sessions.');
+		return null;
+	}
+}
+
+function writeSessionCache(data) {
+	localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+}
 
 export async function initDB() {
-	if (db.isReady) return;
+	if (db.isSessionsReady && db.isMetaReady) return;
 	if (initDBPromise) return initDBPromise;
 
 	initDBPromise = (async () => {
 		try {
 			console.log('🚀 Initializing DB...');
 
+			const savedTheme = localStorage.getItem('app_theme') || 'light';
+			db.theme = savedTheme;
+			applyTheme(savedTheme);
+
+			const cachedSessions = readSessionCache();
+			if (cachedSessions?.data?.length) {
+				db.sessions = cachedSessions.data;
+				db.isSessionsReady = true;
+				db.isReady = true;
+			}
+
 			const sessionPromise = supabase
-				.from('sessions').select('*').order('created_at', { ascending: false });
+				.from('sessions')
+				.select('id,title,date,time,subtitle,court_count,racket_count,buy_shuttlecock,is_locked,created_at')
+				.order('created_at', { ascending: false });
 
 			const backgroundPromise = Promise.all([
-				supabase.from('participants').select('*').order('created_at', { ascending: true }),
-				supabase.from('gallery').select('*').order('created_at', { ascending: false }),
-				supabase.from('settings').select('*').eq('id', 'global').maybeSingle()
+				supabase
+					.from('participants')
+					.select('id,session_id,name,needs_racket,has_paid,ticket_id,unique_code,payment_status,payment_proof_url,created_at')
+					.order('created_at', { ascending: true }),
+				supabase
+					.from('gallery')
+					.select('id,url,caption,folder,created_at')
+					.order('created_at', { ascending: false }),
+				supabase
+					.from('settings')
+					.select('id,qris_url,maps_url,updated_at')
+					.eq('id', 'global')
+					.maybeSingle()
 			]);
 
 			const timeoutPromise = new Promise((_, reject) =>
@@ -101,26 +153,46 @@ export async function initDB() {
 			);
 
 			try {
-				const { data: sData } = await Promise.race([sessionPromise, timeoutPromise]);
-				if (sData) { db.sessions = sData; console.log('✅ Sessions loaded'); }
-			} catch {
+				const sessionRes = cachedSessions?.isFresh ? await sessionPromise : await Promise.race([sessionPromise, timeoutPromise]);
+				const sData = sessionRes?.data ?? [];
+				db.sessions = sData;
+				writeSessionCache(sData);
+				db.isSessionsReady = true;
+				db.isReady = true;
+				console.log('✅ Sessions loaded');
+			} catch (err) {
 				console.warn('⚠️ Session load timed out.');
+				if (!db.isSessionsReady) {
+					db.isSessionsReady = true;
+					db.isReady = true;
+				}
+
+				// Keep fetching in background and refresh as soon as network returns.
+				sessionPromise
+					.then(({ data }) => {
+						if (!Array.isArray(data)) return;
+						db.sessions = data;
+						writeSessionCache(data);
+						db.isSessionsReady = true;
+						db.isReady = true;
+						console.log('✅ Sessions refreshed after timeout');
+					})
+					.catch((lateErr) => {
+						console.error('❌ Late session load failed:', lateErr);
+					});
 			}
-
-			db.isReady = true;
-
-			const savedTheme = localStorage.getItem('app_theme') || 'light';
-			db.theme = savedTheme;
-			applyTheme(savedTheme);
 
 			const [pRes, gRes, setRes] = await backgroundPromise;
 			if (pRes.data) db.participants = pRes.data;
 			if (gRes.data) db.gallery = gRes.data;
 			if (setRes.data) db.settings = setRes.data || db.settings;
+			db.isMetaReady = true;
 			console.log('🏁 DB Ready');
 
 		} catch (err) {
 			console.error('❌ Failed to init DB:', err);
+			db.isSessionsReady = true;
+			db.isMetaReady = true;
 			db.isReady = true;
 		} finally {
 			initDBPromise = null;

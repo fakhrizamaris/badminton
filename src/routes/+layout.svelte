@@ -4,6 +4,7 @@
 
 	import { onMount } from "svelte";
 	import { initDB, db } from "$lib/data/store.svelte.js";
+	import { startPerformanceMonitoring } from "$lib/perf/monitoring.js";
 	import { 
 		ChevronRight, ChevronUp, ChevronDown, 
 		CheckCircle2, XCircle, Info, AlertTriangle, X 
@@ -21,6 +22,11 @@
 	onMount(() => {
 		initDB();
 		myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+		const stopPerfMonitoring = startPerformanceMonitoring();
+
+		return () => {
+			stopPerfMonitoring();
+		};
 	});
 </script>
 

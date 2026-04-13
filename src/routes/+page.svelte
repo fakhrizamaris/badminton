@@ -7,9 +7,36 @@
 	let myTickets = $state([]);
 	let isMenuOpen = $state(false);
 	let showPasses = $state(false);
+	let isDesktopSchedule = $state(false);
+	let gallerySentinel;
+	let galleryObserver;
+
+	const GALLERY_BATCH_SIZE = 12;
+	let visibleGalleryCount = $state(GALLERY_BATCH_SIZE);
 
 	onMount(() => {
 		myTickets = JSON.parse(localStorage.getItem('my_tickets') || '[]');
+
+		const mediaQuery = window.matchMedia('(min-width: 1024px)');
+		const syncViewport = () => {
+			isDesktopSchedule = mediaQuery.matches;
+		};
+		syncViewport();
+		mediaQuery.addEventListener('change', syncViewport);
+
+		galleryObserver = new IntersectionObserver((entries) => {
+			if (!entries[0]?.isIntersecting) return;
+			loadMoreGallery();
+		}, { rootMargin: '240px' });
+
+		if (gallerySentinel) {
+			galleryObserver.observe(gallerySentinel);
+		}
+
+		return () => {
+			mediaQuery.removeEventListener('change', syncViewport);
+			galleryObserver?.disconnect();
+		};
 	});
 
 	/**
@@ -42,9 +69,19 @@
 		history.replaceState(null, '', '/');
 	}
 
-	// Only show non-locked sessions in upcoming
-	let upcomingSessions = $derived(db.sessions.filter((s) => !s.is_locked));
 	let allSessions = $derived(db.sessions);
+
+	let participantCountBySession = $derived.by(() => {
+		const counts = new Map();
+		for (const p of db.participants) {
+			counts.set(p.session_id, (counts.get(p.session_id) || 0) + 1);
+		}
+		return counts;
+	});
+
+	function getParticipantCount(sessionId) {
+		return participantCountBySession.get(sessionId) || 0;
+	}
 
 	// Gallery data (points to folders in /static/)
 	const galleryData = [
@@ -69,14 +106,36 @@
 		}
 	];
 
-	// Menggabungkan foto statis dan foto hasil upload dynamic
+	function getSupabaseGalleryThumbUrl(url, id) {
+		const cleanUrl = (url || '').split('?')[0];
+		if (!cleanUrl.includes('/storage/v1/object/public/gallery/')) {
+			return cleanUrl;
+		}
+		const transformed = cleanUrl.replace('/storage/v1/object/public/gallery/', '/storage/v1/render/image/public/gallery/');
+		return `${transformed}?width=720&quality=60&format=origin&v=${id}`;
+	}
+
+	// Combine static and dynamic gallery with thumbnail + full image variants.
 	let combinedGallery = $derived([
-		...db.gallery.map(img => ({ 
-			url: `${img.url.split('?')[0]}?v=${img.id}`, 
-			date: (img.folder || '').replace(/-/g, ' ') || 'Gallery' 
+		...db.gallery.map(img => ({
+			thumbUrl: getSupabaseGalleryThumbUrl(img.url, img.id),
+			fullUrl: `${img.url.split('?')[0]}?v=${img.id}`,
+			date: (img.folder || '').replace(/-/g, ' ') || 'Gallery'
 		})),
-		...galleryData.flatMap(group => group.images.map(src => ({ url: src, date: group.date })))
+		...galleryData.flatMap(group => group.images.map(src => ({
+			thumbUrl: `/thumbs${src}`,
+			fullUrl: src,
+			date: group.date
+		})))
 	]);
+
+	let visibleGallery = $derived(combinedGallery.slice(0, visibleGalleryCount));
+	let hasMoreGallery = $derived(visibleGalleryCount < combinedGallery.length);
+
+	function loadMoreGallery() {
+		if (!hasMoreGallery) return;
+		visibleGalleryCount = Math.min(visibleGalleryCount + GALLERY_BATCH_SIZE, combinedGallery.length);
+	}
 
 	// Lightbox State
 	let selectedImage = $state(null);
@@ -88,6 +147,10 @@
 		selectedImage = null;
 		document.body.style.overflow = 'auto';
 	}
+
+	$effect(() => {
+		visibleGalleryCount = Math.min(Math.max(GALLERY_BATCH_SIZE, visibleGalleryCount), combinedGallery.length || GALLERY_BATCH_SIZE);
+	});
 </script>
 
 <svelte:window onclick={(e) => { 
@@ -297,7 +360,7 @@
 	<section id="schedule" class="pb-12 animate-fade-in-up" style="animation-delay: 120ms">
 		<h2 class="text-xl sm:text-2xl font-bold text-text-primary mb-5">Upcoming Schedule</h2>
 
-		{#if !db.isReady}
+		{#if !db.isSessionsReady}
 			<div class="py-10 text-center animate-pulse">
 				<div class="w-10 h-10 border-4 border-navy border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
 				<p class="text-sm font-medium text-text-secondary">Loading schedule...</p>
@@ -307,106 +370,77 @@
 				<p class="text-sm text-text-secondary">No sessions scheduled yet.</p>
 			</div>
 		{:else}
-			<!-- Horizontal scroll container -->
-			<div class="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 snap-x snap-mandatory scrollbar-hide">
-				{#each allSessions as session (session.id)}
-					{@const sessionParticipants = getParticipants(session.id)}
-					{@const passed = isSessionPassed(session)}
+			{#if isDesktopSchedule}
+				<div class="space-y-3 stagger">
+					{#each allSessions as session (session.id)}
+						{@const participantCount = getParticipantCount(session.id)}
+						{@const passed = isSessionPassed(session)}
 
-					<a
-						href="/session/{session.id}"
-						class="group flex-shrink-0 w-56 bg-surface rounded-3xl border border-border/50 shadow-sm p-5 transition-all duration-300 snap-start {passed ? 'opacity-50 grayscale pointer-events-none' : session.is_locked ? 'opacity-70 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]' : 'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'}"
-					>
-						<!-- Date & Time -->
-						<div class="mb-3">
-							<p class="text-base font-bold text-text-primary">
-								{formatShortDate(session.date)}, {session.time}
-							</p>
-							<p class="text-xs text-text-secondary mt-0.5">{session.subtitle}</p>
-						</div>
-
-						<!-- Meta info -->
-						<div class="flex items-center gap-3 mb-4 text-[11px] text-text-tertiary">
-							<span class="flex items-center gap-1">
-								<Users size={11} />
-								{sessionParticipants.length}
-							</span>
-							<span class="flex items-center gap-1">
-								<Calendar size={11} />
-								{session.court_count} ct
-							</span>
-							{#if passed}
-								<span class="flex items-center gap-1 text-text-tertiary">
-									✓ Completed
-								</span>
-							{:else if session.is_locked}
-								<span class="flex items-center gap-1 text-warning">
-									<Lock size={10} />
-									Locked
-								</span>
-							{/if}
-						</div>
-
-						<!-- CTA Button -->
-						<div
-							class="w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors {passed
-								? 'bg-text-tertiary/10 text-text-tertiary'
-								: session.is_locked
-									? 'bg-text-tertiary/10 text-text-tertiary'
-									: 'bg-navy text-white group-hover:bg-navy-light'}"
+						<a
+							href="/session/{session.id}"
+							class="group flex items-center gap-4 bg-surface rounded-2xl border border-border/50 shadow-sm p-4 transition-all duration-300 animate-fade-in-up {passed ? 'opacity-50 grayscale pointer-events-none' : session.is_locked ? 'opacity-70 hover:shadow-md active:scale-[0.98]' : 'hover:shadow-md active:scale-[0.98]'}"
 						>
-							{passed ? 'Session Ended' : session.is_locked ? 'View Bill' : 'Book Spot'}
-						</div>
-					</a>
-				{/each}
-			</div>
+							<div class="flex-shrink-0 w-12 h-12 rounded-xl {passed ? 'bg-text-tertiary/10' : session.is_locked ? 'bg-text-tertiary/10' : 'bg-navy'} flex flex-col items-center justify-center">
+								<span class="text-[9px] font-bold {passed || session.is_locked ? 'text-text-tertiary' : 'text-white/70'} tracking-wider">
+									{formatShortDate(session.date).split(',')[0].trim().toUpperCase()}
+								</span>
+								<span class="text-base font-bold {passed || session.is_locked ? 'text-text-secondary' : 'text-white'} -mt-0.5">
+									{new Date(session.date + 'T00:00:00').getDate()}
+								</span>
+							</div>
 
-			<!-- All sessions list (vertical, for completeness below) -->
-			<div class="mt-6 space-y-3 stagger">
-				{#each allSessions as session (session.id)}
-					{@const sessionParticipants = getParticipants(session.id)}
-					{@const passed = isSessionPassed(session)}
+							<div class="flex-1 min-w-0">
+								<div class="flex items-center gap-2">
+									<h3 class="text-sm font-semibold text-text-primary truncate">{session.title}</h3>
+									{#if passed}
+										<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary text-[9px] font-bold flex-shrink-0">✓ Ended</span>
+									{:else if session.is_locked}
+										<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[9px] font-bold flex-shrink-0"><Lock size={8} />Locked</span>
+									{/if}
+								</div>
+								<div class="flex items-center gap-3 mt-1 text-[11px] text-text-tertiary">
+									<span>{session.time}</span>
+									<span>{participantCount} joined</span>
+									<span>{session.court_count} court{session.court_count > 1 ? 's' : ''}</span>
+								</div>
+							</div>
 
-					<a
-						href="/session/{session.id}"
-						class="group flex items-center gap-4 bg-surface rounded-2xl border border-border/50 shadow-sm p-4 transition-all duration-300 animate-fade-in-up {passed ? 'opacity-50 grayscale pointer-events-none' : session.is_locked ? 'opacity-70 hover:shadow-md active:scale-[0.98]' : 'hover:shadow-md active:scale-[0.98]'}"
-					>
-						<!-- Date Badge -->
-						<div class="flex-shrink-0 w-12 h-12 rounded-xl {passed ? 'bg-text-tertiary/10' : session.is_locked ? 'bg-text-tertiary/10' : 'bg-navy'} flex flex-col items-center justify-center">
-							<span class="text-[9px] font-bold {passed || session.is_locked ? 'text-text-tertiary' : 'text-white/70'} tracking-wider">
-								{formatShortDate(session.date).split(',')[0].trim().toUpperCase()}
-							</span>
-							<span class="text-base font-bold {passed || session.is_locked ? 'text-text-secondary' : 'text-white'} -mt-0.5">
-								{new Date(session.date + 'T00:00:00').getDate()}
-							</span>
-						</div>
+							<ChevronRight size={16} class="text-text-tertiary group-hover:text-navy transition-colors flex-shrink-0" />
+						</a>
+					{/each}
+				</div>
+			{:else}
+				<div class="flex gap-4 overflow-x-auto pb-4 -mx-5 px-5 snap-x snap-mandatory scrollbar-hide">
+					{#each allSessions as session (session.id)}
+						{@const participantCount = getParticipantCount(session.id)}
+						{@const passed = isSessionPassed(session)}
 
-						<!-- Info -->
-						<div class="flex-1 min-w-0">
-							<div class="flex items-center gap-2">
-								<h3 class="text-sm font-semibold text-text-primary truncate">{session.title}</h3>
+						<a
+							href="/session/{session.id}"
+							class="group flex-shrink-0 w-56 bg-surface rounded-3xl border border-border/50 shadow-sm p-5 transition-all duration-300 snap-start {passed ? 'opacity-50 grayscale pointer-events-none' : session.is_locked ? 'opacity-70 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]' : 'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]'}"
+						>
+							<div class="mb-3">
+								<p class="text-base font-bold text-text-primary">{formatShortDate(session.date)}, {session.time}</p>
+								<p class="text-xs text-text-secondary mt-0.5">{session.subtitle}</p>
+							</div>
+
+							<div class="flex items-center gap-3 mb-4 text-[11px] text-text-tertiary">
+								<span class="flex items-center gap-1"><Users size={11} />{participantCount}</span>
+								<span class="flex items-center gap-1"><Calendar size={11} />{session.court_count} ct</span>
 								{#if passed}
-									<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-text-tertiary/10 text-text-tertiary text-[9px] font-bold flex-shrink-0">
-										✓ Ended
-									</span>
+									<span class="flex items-center gap-1 text-text-tertiary">✓ Completed</span>
 								{:else if session.is_locked}
-									<span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-warning/10 text-warning text-[9px] font-bold flex-shrink-0">
-										<Lock size={8} />
-										Locked
-									</span>
+									<span class="flex items-center gap-1 text-warning"><Lock size={10} />Locked</span>
 								{/if}
 							</div>
-							<div class="flex items-center gap-3 mt-1 text-[11px] text-text-tertiary">
-								<span>{session.time}</span>
-								<span>{sessionParticipants.length} joined</span>
-								<span>{session.court_count} court{session.court_count > 1 ? 's' : ''}</span>
-							</div>
-						</div>
 
-						<ChevronRight size={16} class="text-text-tertiary group-hover:text-navy transition-colors flex-shrink-0" />
-					</a>
-				{/each}
-			</div>
+							<div class="w-full py-2.5 rounded-xl text-center text-sm font-semibold transition-colors {passed ? 'bg-text-tertiary/10 text-text-tertiary' : session.is_locked ? 'bg-text-tertiary/10 text-text-tertiary' : 'bg-navy text-white group-hover:bg-navy-light'}">
+								{passed ? 'Session Ended' : session.is_locked ? 'View Bill' : 'Book Spot'}
+							</div>
+						</a>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	</section>
 
@@ -435,7 +469,7 @@
 		<!-- Right: Masonry Grid -->
 		<div class="w-full lg:w-2/3 bg-bg p-4 sm:p-6 lg:p-8 min-h-screen">
 			<div class="columns-2 md:columns-3 gap-4 lg:gap-6 space-y-4 lg:space-y-6">
-				{#each combinedGallery as img, i}
+				{#each visibleGallery as img, i}
 					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div 
@@ -443,10 +477,14 @@
 						onclick={() => openLightbox(img)}
 					>
 						<img 
-							src={img.url} 
+							src={img.thumbUrl} 
+							srcset="{img.thumbUrl} 720w, {img.fullUrl} 1400w"
+							sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
 							alt="Gallery moment {i}"
 							class="w-full h-auto object-cover transform transition-transform duration-700 group-hover:scale-105 [will-change:transform]"
 							loading="lazy"
+							decoding="async"
+							fetchpriority="low"
 						/>
 						<div class="absolute inset-x-0 bottom-0 pt-16 pb-4 px-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
 							<span class="text-white text-xs sm:text-sm font-semibold">{img.date}</span>
@@ -454,6 +492,19 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if hasMoreGallery}
+				<div class="mt-6 flex justify-center">
+					<button
+						onclick={loadMoreGallery}
+						class="px-5 py-2.5 bg-navy text-white text-xs font-bold rounded-xl shadow-sm hover:shadow-md active:scale-95 transition-all"
+					>
+						Load More Photos
+					</button>
+				</div>
+			{/if}
+
+			<div bind:this={gallerySentinel} class="h-2"></div>
 		</div>
 	</section>
 
@@ -477,7 +528,7 @@
 				onclick={(e) => e.stopPropagation()}
 			>
 				<img 
-					src={selectedImage.url} 
+					src={selectedImage.fullUrl} 
 					alt="Preview" 
 					class="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10"
 				/>
