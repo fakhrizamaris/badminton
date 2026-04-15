@@ -148,12 +148,15 @@ export async function initDB() {
 					.maybeSingle()
 			]);
 
-			const timeoutPromise = new Promise((_, reject) =>
-				setTimeout(() => reject(new Error('TIMEOUT')), 8000)
-			);
-
 			try {
-				const sessionRes = cachedSessions?.isFresh ? await sessionPromise : await Promise.race([sessionPromise, timeoutPromise]);
+				const sessionRes = cachedSessions?.isFresh
+					? await sessionPromise
+					: await Promise.race([
+						sessionPromise,
+						new Promise((_, reject) =>
+							setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+						)
+					]);
 				const sData = sessionRes?.data ?? [];
 				db.sessions = sData;
 				writeSessionCache(sData);
@@ -668,19 +671,35 @@ export async function createSession(title, date, time, subtitle, courtCount, rac
 		}])
 		.select();
 
-	if (data?.[0]) { db.sessions = [data[0], ...db.sessions]; return data[0]; }
+	if (data?.[0]) {
+		db.sessions = [data[0], ...db.sessions];
+		writeSessionCache(db.sessions);
+		return data[0];
+	}
 	if (error) console.error('Create session error:', error);
 	return null;
 }
 
 export async function deleteSession(sessionId) {
-	const { error } = await supabase.from('sessions').delete().eq('id', sessionId);
-	if (!error) {
-		db.sessions = db.sessions.filter(s => s.id !== sessionId);
-		db.participants = db.participants.filter(p => p.session_id !== sessionId);
-	} else {
-		console.error('Gagal hapus sesi:', error);
+	const res = await fetch(`/api/admin/sessions/${sessionId}`, {
+		method: 'DELETE',
+		headers: { 'Content-Type': 'application/json' }
+	});
+
+	if (!res.ok) {
+		let message = 'Gagal hapus sesi.';
+		try {
+			const body = await res.json();
+			if (body?.error) message = body.error;
+		} catch {
+			// noop: pakai pesan default jika body bukan JSON
+		}
+		throw new Error(message);
 	}
+
+	db.sessions = db.sessions.filter(s => s.id !== sessionId);
+	db.participants = db.participants.filter(p => p.session_id !== sessionId);
+	writeSessionCache(db.sessions);
 }
 
 export async function toggleSessionShuttlecock(sessionId) {

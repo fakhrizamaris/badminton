@@ -1,10 +1,25 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { ADMIN_PIN } from '$env/static/private';
+import { createPublicSupabase, getAdminEmail } from '$lib/server/adminAuth';
 
 export const actions = {
 	login: async ({ request, cookies }) => {
+		const isSecure = new URL(request.url).protocol === 'https:';
 		const data = await request.formData();
-		const pin = data.get('pin');
+		const email = String(data.get('email') || '').trim().toLowerCase();
+		const password = String(data.get('password') || '');
+		const adminEmail = getAdminEmail();
+
+		if (!adminEmail) {
+			return fail(500, { error: 'ADMIN_EMAIL belum diset di environment server.' });
+		}
+
+		if (!email || !password) {
+			return fail(400, { error: 'Email dan password wajib diisi.' });
+		}
+
+		if (email !== adminEmail) {
+			return fail(403, { error: 'Akun ini tidak punya akses admin.' });
+		}
 
 		// Throttling logic
 		const attempts = parseInt(cookies.get('login_attempts') || '0');
@@ -16,19 +31,37 @@ export const actions = {
 			return fail(403, { error: `Terlalu banyak percobaan. Silakan coba lagi dalam ${remaining} menit.` });
 		}
 
-		// Memeriksa PIN dari Environment Variable (Secret)
-		if (pin === (ADMIN_PIN || '1234')) {
+		const supabase = createPublicSupabase();
+		const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+			email,
+			password
+		});
+
+		if (!authError && authData?.session?.access_token) {
 			// Reset attempts on success
 			cookies.delete('login_attempts', { path: '/' });
 			cookies.delete('lockout_until', { path: '/' });
 
-			cookies.set('admin_auth', 'authenticated', {
+			cookies.set('sb_access_token', authData.session.access_token, {
 				path: '/',
 				httpOnly: true,
 				sameSite: 'strict',
-				secure: true,
-				maxAge: 60 * 60 * 24 // 1 hari
+				secure: isSecure,
+				maxAge: authData.session.expires_in || 60 * 60
 			});
+
+			if (authData.session.refresh_token) {
+				cookies.set('sb_refresh_token', authData.session.refresh_token, {
+					path: '/',
+					httpOnly: true,
+					sameSite: 'strict',
+					secure: isSecure,
+					maxAge: 60 * 60 * 24 * 7
+				});
+			} else {
+				cookies.delete('sb_refresh_token', { path: '/' });
+			}
+
 			throw redirect(303, '/admin');
 		}
 
@@ -38,14 +71,19 @@ export const actions = {
 			const until = Date.now() + 5 * 60 * 1000; // 5 menit
 			cookies.set('lockout_until', until.toString(), { path: '/', maxAge: 300 });
 			cookies.delete('login_attempts', { path: '/' });
-			return fail(403, { error: 'Terlalu banyak percobaan salah. Login dikunci selama 5 menit.' });
+			return fail(403, { error: 'Terlalu banyak percobaan gagal. Login dikunci selama 5 menit.' });
 		}
 
 		cookies.set('login_attempts', newAttempts.toString(), { path: '/', maxAge: 3600 });
-		return fail(400, { error: `PIN salah. Sisa percobaan: ${3 - newAttempts}.` });
+		return fail(400, {
+			error: `Login gagal: ${authError?.message || 'email/password salah'}. Sisa percobaan: ${3 - newAttempts}.`
+		});
 	},
 	logout: async ({ cookies }) => {
-		cookies.delete('admin_auth', { path: '/' });
+		cookies.delete('sb_access_token', { path: '/' });
+		cookies.delete('sb_refresh_token', { path: '/' });
+		cookies.delete('login_attempts', { path: '/' });
+		cookies.delete('lockout_until', { path: '/' });
 		throw redirect(303, '/admin/login');
 	}
 };

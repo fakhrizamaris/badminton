@@ -1224,11 +1224,19 @@
 												type: "danger",
 											});
 											if (confirmed) {
-												await deleteSession(session.id);
-												showToast(
-													"Sesi berhasil dihapus",
-													"success",
-												);
+												try {
+													await deleteSession(session.id);
+													showToast(
+														"Sesi berhasil dihapus",
+														"success",
+													);
+												} catch (err) {
+													console.error("Delete session failed:", err);
+													showToast(
+														`Gagal hapus sesi: ${err.message || "cek koneksi/permission database"}`,
+														"error",
+													);
+												}
 											}
 										}}
 										class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-90"

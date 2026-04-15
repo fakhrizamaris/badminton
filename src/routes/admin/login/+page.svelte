@@ -1,6 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
-	import { Shield, Lock } from 'lucide-svelte';
+	import { Shield, Lock, Mail } from 'lucide-svelte';
 	
 	let { form } = $props();
 	let isLoading = $state(false);
@@ -16,7 +16,7 @@
 			<Shield size={28} class="text-white" />
 		</div>
 		<h1 class="text-2xl font-bold text-text-primary">Admin Access</h1>
-		<p class="text-sm text-text-secondary mt-1">Enter the admin PIN to continue</p>
+		<p class="text-sm text-text-secondary mt-1">Masuk dengan email & password admin Supabase</p>
 	</div>
 
 	<form
@@ -32,22 +32,41 @@
 		class="bg-surface rounded-3xl border border-border/50 shadow-sm p-6 space-y-4"
 	>
 		<div>
-			<label for="admin-pin" class="block text-xs font-medium text-text-secondary mb-1.5">
-				Security PIN
+			<label for="admin-email" class="block text-xs font-medium text-text-secondary mb-1.5">
+				Email Admin
+			</label>
+			<div class="relative">
+				<div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary">
+					<Mail size={16} />
+				</div>
+				<input
+					id="admin-email"
+					name="email"
+					type="email"
+					autocomplete="email"
+					required
+					placeholder="admin@email.com"
+					class="w-full pl-12 pr-4 py-3.5 bg-bg rounded-2xl border border-border/50 text-base text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
+				/>
+			</div>
+		</div>
+
+		<div>
+			<label for="admin-password" class="block text-xs font-medium text-text-secondary mb-1.5">
+				Password
 			</label>
 			<div class="relative">
 				<div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary">
 					<Lock size={16} />
 				</div>
 				<input
-					id="admin-pin"
-					name="pin"
+					id="admin-password"
+					name="password"
 					type="password"
-					inputmode="numeric"
-					autocomplete="one-time-code"
+					autocomplete="current-password"
 					required
-					placeholder="••••"
-					class="w-full pl-12 pr-4 py-3.5 bg-bg rounded-2xl border border-border/50 text-base text-text-primary tracking-[0.5em] placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all font-mono"
+					placeholder="Masukkan password"
+					class="w-full pl-12 pr-4 py-3.5 bg-bg rounded-2xl border border-border/50 text-base text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-navy/20 focus:border-navy/30 transition-all"
 				/>
 			</div>
 			{#if form?.error}
