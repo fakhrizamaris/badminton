@@ -1225,13 +1225,18 @@
 											});
 											if (confirmed) {
 												try {
-													await deleteSession(session.id);
+													await deleteSession(
+														session.id,
+													);
 													showToast(
 														"Sesi berhasil dihapus",
 														"success",
 													);
 												} catch (err) {
-													console.error("Delete session failed:", err);
+													console.error(
+														"Delete session failed:",
+														err,
+													);
 													showToast(
 														`Gagal hapus sesi: ${err.message || "cek koneksi/permission database"}`,
 														"error",

@@ -1,5 +1,5 @@
 import { fail, redirect } from '@sveltejs/kit';
-import { createPublicSupabase, getAdminEmail } from '$lib/server/adminAuth';
+import { createPublicSupabase, getAdminEmails, isAdminEmail } from '$lib/server/adminAuth';
 
 export const actions = {
 	login: async ({ request, cookies }) => {
@@ -7,17 +7,17 @@ export const actions = {
 		const data = await request.formData();
 		const email = String(data.get('email') || '').trim().toLowerCase();
 		const password = String(data.get('password') || '');
-		const adminEmail = getAdminEmail();
+		const adminEmails = getAdminEmails();
 
-		if (!adminEmail) {
-			return fail(500, { error: 'ADMIN_EMAIL belum diset di environment server.' });
+		if (!adminEmails.length) {
+			return fail(500, { error: 'ADMIN_EMAIL belum diset di environment server (boleh lebih dari satu, pisahkan dengan koma).' });
 		}
 
 		if (!email || !password) {
 			return fail(400, { error: 'Email dan password wajib diisi.' });
 		}
 
-		if (email !== adminEmail) {
+		if (!isAdminEmail(email)) {
 			return fail(403, { error: 'Akun ini tidak punya akses admin.' });
 		}
 

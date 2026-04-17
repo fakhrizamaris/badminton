@@ -1,7 +1,7 @@
 <script>
-	import { enhance } from '$app/forms';
-	import { Shield, Lock, Mail } from 'lucide-svelte';
-	
+	import { enhance } from "$app/forms";
+	import { Shield, Lock, Mail } from "lucide-svelte";
+
 	let { form } = $props();
 	let isLoading = $state(false);
 </script>
@@ -12,11 +12,15 @@
 
 <div class="max-w-md mx-auto px-5 pt-32 animate-fade-in">
 	<div class="text-center mb-8">
-		<div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-navy mb-4 shadow-lg shadow-navy/20">
+		<div
+			class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-navy mb-4 shadow-lg shadow-navy/20"
+		>
 			<Shield size={28} class="text-white" />
 		</div>
 		<h1 class="text-2xl font-bold text-text-primary">Admin Access</h1>
-		<p class="text-sm text-text-secondary mt-1">Masuk dengan email & password admin Supabase</p>
+		<p class="text-sm text-text-secondary mt-1">
+			Masuk dengan email & password admin Supabase
+		</p>
 	</div>
 
 	<form
@@ -32,11 +36,16 @@
 		class="bg-surface rounded-3xl border border-border/50 shadow-sm p-6 space-y-4"
 	>
 		<div>
-			<label for="admin-email" class="block text-xs font-medium text-text-secondary mb-1.5">
+			<label
+				for="admin-email"
+				class="block text-xs font-medium text-text-secondary mb-1.5"
+			>
 				Email Admin
 			</label>
 			<div class="relative">
-				<div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary">
+				<div
+					class="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary"
+				>
 					<Mail size={16} />
 				</div>
 				<input
@@ -52,11 +61,16 @@
 		</div>
 
 		<div>
-			<label for="admin-password" class="block text-xs font-medium text-text-secondary mb-1.5">
+			<label
+				for="admin-password"
+				class="block text-xs font-medium text-text-secondary mb-1.5"
+			>
 				Password
 			</label>
 			<div class="relative">
-				<div class="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary">
+				<div
+					class="absolute left-4 top-1/2 -translate-y-1/2 text-text-tertiary"
+				>
 					<Lock size={16} />
 				</div>
 				<input
@@ -70,7 +84,11 @@
 				/>
 			</div>
 			{#if form?.error}
-				<p class="text-xs text-danger font-medium mt-2 animate-scale-in">{form.error}</p>
+				<p
+					class="text-xs text-danger font-medium mt-2 animate-scale-in"
+				>
+					{form.error}
+				</p>
 			{/if}
 		</div>
 
@@ -80,7 +98,9 @@
 			class="w-full py-3.5 bg-navy text-white font-bold text-sm rounded-2xl shadow-sm shadow-navy/20 hover:shadow-md transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
 		>
 			{#if isLoading}
-				<div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+				<div
+					class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"
+				></div>
 				Verifying...
 			{:else}
 				Login to Dashboard
@@ -89,7 +109,10 @@
 	</form>
 
 	<div class="mt-8 text-center">
-		<a href="/" class="text-sm font-semibold text-text-tertiary hover:text-navy transition-colors">
+		<a
+			href="/"
+			class="text-sm font-semibold text-text-tertiary hover:text-navy transition-colors"
+		>
 			← Back to Public Site
 		</a>
 	</div>
