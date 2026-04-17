@@ -463,7 +463,7 @@
 					>
 						<div class="flex items-center gap-3">
 							<div
-								class={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${db.theme === 'dark' ? 'bg-sky-300/20 text-sky-200' : 'bg-navy/20 text-navy'}`}
+								class={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${db.theme === "dark" ? "bg-sky-300/20 text-sky-200" : "bg-navy/20 text-navy"}`}
 							>
 								<Users size={16} strokeWidth={3} />
 							</div>
