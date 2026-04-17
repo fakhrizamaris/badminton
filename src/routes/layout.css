@@ -3,9 +3,9 @@
 @theme {
 	--font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
 
-	--color-navy: #15335E;
-	--color-navy-light: #1E4A8A;
-	--color-navy-dark: #0E2240;
+	--color-navy: #2A5A9E;
+	--color-navy-light: #3D74BD;
+	--color-navy-dark: #1E4A8A;
 	--color-surface: #FFFFFF;
 	--color-bg: #F5F5F7;
 	--color-bg-alt: #FAFAFA;
@@ -27,7 +27,9 @@
 	--color-text-secondary: #8E8E93;
 	--color-text-tertiary: #636366;
 	--color-border: #2C2C2E;
-	--color-navy: #2A5A9E;
+	--color-navy-light: #15335E;
+	--color-navy: #102847;
+	--color-navy-dark: #0B1C33;
 }
 
 @layer base {
