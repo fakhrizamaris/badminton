@@ -43,6 +43,7 @@
 		LogOut,
 		Clock as ClockIcon,
 		Image as ImageIcon,
+		Pencil,
 		Upload,
 		QrCode,
 		Sun,
@@ -511,24 +512,24 @@
 	<title>Admin Dashboard — Badminton Split-Bill</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto px-5">
+<div class="max-w-4xl mx-auto px-4 sm:px-5">
 	<!-- Header -->
-	<header class="pt-8 pb-5 animate-fade-in">
+	<header class="pt-6 sm:pt-8 pb-4 sm:pb-5 animate-fade-in">
 		<div
 			class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
 		>
 			<div>
-				<h1 class="text-2xl font-bold text-text-primary leading-tight">
+				<h1 class="text-xl sm:text-2xl font-bold text-text-primary leading-tight">
 					Admin Dashboard
 				</h1>
-				<p class="text-sm text-text-secondary mt-1">
+				<p class="text-xs sm:text-sm text-text-secondary mt-1">
 					Manage sessions & participants
 				</p>
 			</div>
 
-			<div class="flex flex-wrap items-center gap-3">
+			<div class="flex flex-wrap items-center gap-2 sm:gap-3">
 				<!-- Search -->
-				<div class="relative flex-1 min-w-[180px]">
+				<div class="relative flex-1 min-w-[160px] sm:min-w-[180px]">
 					<Search
 						class="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary"
 						size={14}
@@ -537,34 +538,34 @@
 						type="text"
 						bind:value={searchQuery}
 						placeholder="ID or Player Name..."
-						class="w-full pl-9 pr-4 py-2.5 bg-surface border border-border/50 rounded-xl text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/10 shadow-sm"
+						class="w-full pl-9 pr-3 sm:pr-4 py-2.5 bg-surface border border-border/50 rounded-xl text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/10 shadow-sm"
 					/>
 				</div>
 
 				<button
 					onclick={startScanner}
-					class="w-11 h-11 bg-navy text-white rounded-xl flex items-center justify-center shadow-lg shadow-navy/10 active:scale-95 transition-all"
+					class="w-10 h-10 sm:w-11 sm:h-11 bg-navy text-white rounded-xl flex items-center justify-center shadow-lg shadow-navy/10 active:scale-95 transition-all"
 					title="Scan Member Pass"
 				>
-					<QrCode size={20} />
+					<QrCode size={18} />
 				</button>
 
 				<button
 					onclick={toggleTheme}
-					class="w-11 h-11 rounded-xl bg-surface border border-border/50 flex items-center justify-center text-text-primary shadow-sm active:scale-95"
+					class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-surface border border-border/50 flex items-center justify-center text-text-primary shadow-sm active:scale-95"
 				>
-					{#if db.theme === "dark"}<Sun size={20} />{:else}<Moon
-							size={20}
+					{#if db.theme === "dark"}<Sun size={18} />{:else}<Moon
+							size={18}
 						/>{/if}
 				</button>
 
 				<form method="POST" action="/admin/login?/logout" use:enhance>
 					<button
 						type="submit"
-						class="w-11 h-11 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-95"
+						class="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-95"
 						title="Logout"
 					>
-						<LogOut size={20} />
+						<LogOut size={18} />
 					</button>
 				</form>
 			</div>
@@ -574,55 +575,55 @@
 	<!-- Stats -->
 	{#if db.isReady}
 		<div
-			class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 animate-fade-in-up"
+			class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 mb-5 sm:mb-6 animate-fade-in-up"
 			style="animation-delay:100ms"
 		>
 			<div
-				class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm"
+				class="bg-surface rounded-2xl p-3 sm:p-4 border border-border/50 shadow-sm min-h-[112px]"
 			>
 				<p
-					class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1"
+					class="text-[0.62rem] sm:text-[10px] font-black text-text-tertiary uppercase tracking-[0.14em] sm:tracking-widest mb-1"
 				>
 					Total Revenue
 				</p>
-				<p class="text-lg font-black text-success leading-tight">
+				<p class="text-xl sm:text-lg font-black text-success leading-tight">
 					{formatCurrency(getCommunityStats().totalRevenue)}
 				</p>
 			</div>
 			<div
-				class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm"
+				class="bg-surface rounded-2xl p-3 sm:p-4 border border-border/50 shadow-sm min-h-[112px]"
 			>
 				<p
-					class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1"
+					class="text-[0.62rem] sm:text-[10px] font-black text-text-tertiary uppercase tracking-[0.14em] sm:tracking-widest mb-1"
 				>
 					Total RSVP
 				</p>
-				<p class="text-lg font-black text-text-primary leading-tight">
+				<p class="text-xl sm:text-lg font-black text-text-primary leading-tight">
 					{getCommunityStats().totalPlayers}
 				</p>
 			</div>
 			<div
-				class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm"
+				class="bg-surface rounded-2xl p-3 sm:p-4 border border-border/50 shadow-sm min-h-[112px]"
 			>
 				<p
-					class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1"
+					class="text-[0.62rem] sm:text-[10px] font-black text-text-tertiary uppercase tracking-[0.14em] sm:tracking-widest mb-1"
 				>
 					Unique Players
 				</p>
-				<p class="text-lg font-black text-text-primary leading-tight">
+				<p class="text-xl sm:text-lg font-black text-text-primary leading-tight">
 					{getCommunityStats().uniquePlayers}
 				</p>
 			</div>
 			<div
-				class="bg-surface rounded-2xl p-4 border border-border/50 shadow-sm"
+				class="bg-surface rounded-2xl p-3 sm:p-4 border border-border/50 shadow-sm min-h-[112px]"
 			>
 				<p
-					class="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-1 text-navy"
+					class="text-[0.62rem] sm:text-[10px] font-black text-text-tertiary uppercase tracking-[0.14em] sm:tracking-widest mb-1 text-navy"
 				>
 					Pending Proofs
 				</p>
 				<p
-					class="text-lg font-black {pendingVerifications.length > 0
+					class="text-xl sm:text-lg font-black {pendingVerifications.length > 0
 						? 'text-warning'
 						: 'text-text-tertiary'} leading-tight"
 				>
@@ -688,22 +689,22 @@
 	{/if}
 
 	<!-- Action Buttons -->
-	<div class="grid grid-cols-2 gap-3 mb-5 animate-fade-in-up">
+	<div class="grid grid-cols-2 gap-2.5 sm:gap-3 mb-5 animate-fade-in-up">
 		<button
 			onclick={() => (showCreateForm = !showCreateForm)}
-			class="py-3 rounded-2xl text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-2 {showCreateForm
+			class="h-12 sm:h-auto sm:py-3 rounded-2xl text-[0.95rem] sm:text-sm font-semibold transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 sm:gap-2 {showCreateForm
 				? 'bg-text-tertiary/10 text-text-secondary'
 				: 'bg-navy text-white shadow-sm shadow-navy/20'}"
 		>
-			{#if showCreateForm}<X size={16} />Cancel{:else}<Plus
-					size={16}
-				/>New Session{/if}
+			{#if showCreateForm}<X size={15} /><span class="hidden sm:inline">Cancel</span><span class="sm:hidden">Close</span>{:else}<Plus
+					size={15}
+				/><span class="hidden sm:inline">New Session</span><span class="sm:hidden">Session</span>{/if}
 		</button>
 		<button
 			onclick={openMapsConfig}
-			class="py-3 bg-surface border border-border/50 rounded-2xl text-sm font-semibold text-text-primary shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 hover:shadow-md"
+			class="h-12 sm:h-auto sm:py-3 bg-surface border border-border/50 rounded-2xl text-[0.95rem] sm:text-sm font-semibold text-text-primary shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 sm:gap-2 hover:shadow-md"
 		>
-			<Map size={16} />Edit Maps
+			<Map size={15} /><span class="hidden sm:inline">Edit Maps</span><span class="sm:hidden">Maps</span>
 		</button>
 	</div>
 
@@ -908,7 +909,7 @@
 
 	<!-- QRIS Settings -->
 	<div
-		class="bg-surface rounded-3xl border border-border/50 p-6 shadow-sm mt-5 overflow-hidden relative"
+		class="bg-surface rounded-3xl border border-border/50 p-4 sm:p-6 shadow-sm mt-5 overflow-hidden relative"
 	>
 		{#if isUploadingQRIS}
 			<div
@@ -924,18 +925,18 @@
 				</p>
 			</div>
 		{/if}
-		<div class="flex items-center gap-3 mb-6">
+		<div class="flex items-center gap-2.5 sm:gap-3 mb-5 sm:mb-6">
 			<div
-				class="w-10 h-10 rounded-xl bg-navy/5 flex items-center justify-center text-navy"
+				class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-navy/5 flex items-center justify-center text-navy"
 			>
-				<QrCode size={20} />
+				<QrCode size={18} />
 			</div>
 			<div>
-				<h3 class="text-sm font-bold text-text-primary">
+				<h3 class="text-[0.95rem] sm:text-sm font-bold text-text-primary">
 					Payment Settings
 				</h3>
 				<p
-					class="text-[10px] text-text-tertiary uppercase tracking-wider font-semibold"
+					class="text-[9px] sm:text-[10px] text-text-tertiary uppercase tracking-[0.14em] sm:tracking-wider font-semibold"
 				>
 					QRIS & Global Config
 				</p>
@@ -943,10 +944,10 @@
 		</div>
 		<div class="space-y-4">
 			<div
-				class="flex items-center gap-4 p-4 bg-bg rounded-2xl border border-border/50 group"
+				class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-bg rounded-2xl border border-border/50 group"
 			>
 				<div
-					class="w-20 h-20 bg-white rounded-xl border border-border/50 flex items-center justify-center overflow-hidden shadow-inner"
+					class="w-16 h-16 sm:w-20 sm:h-20 bg-white rounded-xl border border-border/50 flex items-center justify-center overflow-hidden shadow-inner"
 				>
 					{#if qrisPreview}
 						<img
@@ -972,19 +973,19 @@
 						<QrCode size={24} class="text-text-tertiary/20" />
 					{/if}
 				</div>
-				<div class="flex-1">
-					<p class="text-xs font-bold text-text-primary mb-1">
+				<div class="flex-1 text-center sm:text-left">
+					<p class="text-sm sm:text-xs font-bold text-text-primary mb-1">
 						Active QRIS Code
 					</p>
 					<p
-						class="text-[10px] text-text-secondary leading-relaxed uppercase tracking-tight font-medium"
+						class="text-[0.72rem] sm:text-[10px] text-text-secondary leading-relaxed uppercase tracking-tight font-medium"
 					>
 						Tampil di semua halaman checkout peserta.
 					</p>
 				</div>
 			</div>
 			<label
-				class="relative flex items-center justify-center gap-2 py-4 bg-navy text-white text-xs font-black rounded-2xl cursor-pointer hover:bg-navy-dark transition-all active:scale-[0.98] shadow-lg shadow-navy/20 overflow-hidden group"
+				class="relative flex items-center justify-center gap-2 py-3.5 sm:py-4 bg-navy text-white text-[11px] sm:text-xs font-black rounded-2xl cursor-pointer hover:bg-navy-dark transition-all active:scale-[0.98] shadow-lg shadow-navy/20 overflow-hidden group"
 			>
 				<input
 					type="file"
@@ -1194,11 +1195,11 @@
 						class="bg-surface rounded-3xl border border-border/50 shadow-sm overflow-hidden animate-fade-in-up"
 					>
 						<div class="p-4">
-							<div class="flex items-center gap-3">
+							<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 								<div class="flex-1 min-w-0">
-									<div class="flex items-center gap-2 mb-1">
+									<div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
 										<h3
-											class="text-sm font-semibold text-text-primary truncate"
+											class="text-[0.95rem] sm:text-sm font-semibold text-text-primary leading-tight break-words"
 										>
 											{session.title}
 										</h3>
@@ -1215,7 +1216,7 @@
 										{/if}
 									</div>
 									<div
-										class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] sm:text-xs text-text-tertiary mt-1"
+										class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-xs text-text-tertiary"
 									>
 										<span class="flex items-center gap-1"
 											><Calendar size={11} />{formatDate(
@@ -1230,7 +1231,7 @@
 										>
 									</div>
 									<div
-										class="flex flex-wrap items-center gap-x-2 mt-1 text-[9px] sm:text-[10px] text-text-tertiary"
+										class="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs sm:text-[10px] text-text-tertiary leading-relaxed"
 									>
 										<span
 											>{session.court_count} court{session.court_count >
@@ -1252,31 +1253,44 @@
 												: "shuttlecock off"}</span
 										>
 										<span>·</span>
-										<span class="font-medium text-navy/70"
+										<span class="text-base sm:text-lg font-extrabold text-navy"
 											>{formatCurrency(total)}</span
 										>
 									</div>
 								</div>
-								<div class="flex items-center gap-1.5 sm:gap-2">
+								<div class="grid grid-cols-5 gap-1.5 sm:flex sm:items-center sm:gap-2 w-full sm:w-auto">
 									<button
 										onclick={async () =>
 											await toggleSessionShuttlecock(
 												session.id,
 											)}
-										class="px-2.5 h-8 sm:h-9 rounded-xl text-[10px] sm:text-xs font-semibold border transition-all active:scale-90 {session.buy_shuttlecock
+										title="Toggle shuttlecock"
+										class="px-0 sm:px-2.5 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border transition-all active:scale-90 flex items-center justify-center gap-1.5 {session.buy_shuttlecock
 											? 'bg-navy/10 text-navy border-navy/20'
 											: 'bg-bg text-text-secondary border-border/60'}"
 									>
-										{session.buy_shuttlecock
-											? "Shuttlecock: ON"
-											: "Shuttlecock: OFF"}
+										<span class="sm:hidden">
+											{#if session.buy_shuttlecock}
+												<Check size={14} />
+											{:else}
+												<X size={14} />
+											{/if}
+										</span>
+										<span class="hidden sm:inline"
+											>{session.buy_shuttlecock
+												? "Shuttle: ON"
+												: "Shuttle: OFF"}</span
+										>
 									</button>
 									<button
 										onclick={() =>
 											openSessionEditor(session)}
-										class="px-2.5 h-8 sm:h-9 rounded-xl text-[10px] sm:text-xs font-semibold border transition-all active:scale-90 bg-bg text-text-secondary border-border/60"
+										title="Edit session"
+										class="px-0 sm:px-2.5 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border transition-all active:scale-90 bg-bg text-text-secondary border-border/60 flex items-center justify-center gap-1"
 									>
-										Edit
+										<Pencil size={14} class="sm:hidden" />
+										<span class="hidden sm:inline">Edit</span>
+										<span class="sr-only sm:hidden">Edit</span>
 									</button>
 									<button
 										onclick={async () => {
@@ -1307,13 +1321,13 @@
 												}
 											}
 										}}
-										class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-90"
+										class="w-full h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-danger/5 flex items-center justify-center text-danger hover:bg-danger/10 transition-all active:scale-90"
 										><Trash2 size={15} /></button
 									>
 									<button
 										onclick={async () =>
 											await toggleLock(session.id)}
-										class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center transition-all active:scale-90 {session.is_locked
+										class="w-full h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center transition-all active:scale-90 {session.is_locked
 											? 'bg-warning/10 text-warning'
 											: 'bg-success/10 text-success'}"
 										>{#if session.is_locked}<Unlock
@@ -1324,7 +1338,7 @@
 									>
 									<button
 										onclick={() => toggleExpand(session.id)}
-										class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-bg flex items-center justify-center transition-all active:scale-90 text-text-secondary"
+										class="w-full h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-bg flex items-center justify-center transition-all active:scale-90 text-text-secondary"
 										>{#if expanded}<ChevronUp
 												size={15}
 											/>{:else}<ChevronDown

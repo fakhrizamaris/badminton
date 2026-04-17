@@ -436,7 +436,7 @@
 
 			<!-- Right: Visual (Logo + Floating Cards) -->
 			<div
-				class="flex-1 flex justify-center lg:justify-end animate-fade-in relative min-h-[250px] sm:min-h-[400px]"
+				class="flex-1 flex justify-center lg:justify-end animate-fade-in relative min-h-[220px] sm:min-h-[400px]"
 			>
 				<!-- Background Glow -->
 				<div
@@ -459,7 +459,7 @@
 
 					<!-- Floating Card 1: Levels -->
 					<div
-						class="absolute -top-10 -right-20 sm:-top-12 sm:-right-28 bg-white/10 backdrop-blur-xl border border-white/20 p-2 sm:p-4 rounded-2xl shadow-2xl animate-float-slow z-20 whitespace-nowrap"
+						class="hidden sm:block absolute -top-12 -right-28 bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-2xl shadow-2xl animate-float-slow z-20 whitespace-nowrap"
 					>
 						<div class="flex items-center gap-3">
 							<div
@@ -484,7 +484,7 @@
 
 					<!-- Floating Card 2: Schedule -->
 					<div
-						class="absolute -bottom-14 -left-20 sm:-bottom-20 sm:-left-36 bg-white/10 backdrop-blur-xl border border-white/20 p-2 sm:p-4 rounded-2xl shadow-2xl animate-float z-20 whitespace-nowrap"
+						class="hidden sm:block absolute -bottom-20 -left-36 bg-white/10 backdrop-blur-xl border border-white/20 p-4 rounded-2xl shadow-2xl animate-float z-20 whitespace-nowrap"
 						style="animation-delay: 1.5s"
 					>
 						<div class="flex items-center gap-3">
@@ -721,14 +721,14 @@
 >
 	<!-- Left: Sticky Text -->
 	<div
-		class="w-full lg:w-1/3 lg:h-screen lg:sticky top-0 p-8 lg:p-12 xl:p-16 flex flex-col justify-center"
+		class="w-full lg:w-1/3 lg:h-screen lg:sticky top-0 p-6 sm:p-8 lg:p-12 xl:p-16 flex flex-col justify-center"
 	>
 		<h2
-			class="text-4xl lg:text-5xl font-bold mb-6 text-white leading-tight"
+			class="text-3xl sm:text-4xl lg:text-5xl font-bold mb-5 sm:mb-6 text-white leading-tight"
 		>
 			Our Energy<br />& Spirit
 		</h2>
-		<p class="text-white/80 leading-relaxed text-sm lg:text-base mb-12">
+		<p class="text-white/80 leading-relaxed text-sm lg:text-base mb-8 sm:mb-12">
 			Feel the passion, the friendship, and the unrelenting drive on the
 			court. This collection is a tribute to the vibrant community that
 			gathers weekly, celebrating every smash, every laugh, and the pure
@@ -745,13 +745,7 @@
 			>
 		</div>
 
-		<div
-			class="lg:absolute bottom-12 left-12 xl:left-16 hidden lg:flex flex-col items-center opacity-70 mt-20"
-		>
-			<span
-				class="text-[10px] text-white uppercase tracking-[0.3em] mb-4 font-black"
-				>Scroll to Explore</span
-			>
+		<div class="lg:absolute bottom-12 left-12 xl:left-16 hidden lg:block opacity-70 mt-20">
 			<div class="w-px h-12 bg-white/30"></div>
 		</div>
 	</div>
@@ -759,7 +753,7 @@
 	<!-- Right: Masonry Grid -->
 	<div class="w-full lg:w-2/3 bg-bg p-4 sm:p-6 lg:p-8 min-h-screen">
 		<div
-			class="columns-2 md:columns-3 gap-4 lg:gap-6 space-y-4 lg:space-y-6"
+			class="columns-1 sm:columns-2 md:columns-3 gap-3 sm:gap-4 lg:gap-6 space-y-3 sm:space-y-4 lg:space-y-6"
 		>
 			{#each visibleGallery as img, i}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
