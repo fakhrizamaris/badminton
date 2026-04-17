@@ -315,10 +315,7 @@
 		const ampmMatch = raw.match(/^(\d{1,2})(?::(\d{1,2}))?\s*(AM|PM)$/i);
 		if (ampmMatch) {
 			let h = Number(ampmMatch[1]) % 12;
-			const m = Math.max(
-				0,
-				Math.min(59, Number(ampmMatch[2] || "0")),
-			);
+			const m = Math.max(0, Math.min(59, Number(ampmMatch[2] || "0")));
 			if (ampmMatch[3].toUpperCase() === "PM") h += 12;
 			return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 		}
@@ -1377,8 +1374,12 @@
 												/>
 											</div>
 										</div>
-										<div class="grid grid-cols-3 gap-3 mb-3">
-											<div class="col-span-3 sm:col-span-1">
+										<div
+											class="grid grid-cols-3 gap-3 mb-3"
+										>
+											<div
+												class="col-span-3 sm:col-span-1"
+											>
 												<label
 													for="edit-date"
 													class="block text-[10px] font-semibold text-text-tertiary mb-1"
@@ -1391,7 +1392,9 @@
 													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
 												/>
 											</div>
-											<div class="col-span-3 sm:col-span-1">
+											<div
+												class="col-span-3 sm:col-span-1"
+											>
 												<label
 													for="edit-start-time"
 													class="block text-[10px] font-semibold text-text-tertiary mb-1"
@@ -1404,7 +1407,9 @@
 													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
 												/>
 											</div>
-											<div class="col-span-3 sm:col-span-1">
+											<div
+												class="col-span-3 sm:col-span-1"
+											>
 												<label
 													for="edit-end-time"
 													class="block text-[10px] font-semibold text-text-tertiary mb-1"
