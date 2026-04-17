@@ -752,15 +752,31 @@ export async function toggleSessionShuttlecock(sessionId) {
 	}
 }
 
-export async function updateSessionConfig(sessionId, { court_count, racket_count, buy_shuttlecock }) {
+export async function updateSessionConfig(sessionId, {
+	title,
+	subtitle,
+	date,
+	time,
+	court_count,
+	racket_count,
+	buy_shuttlecock
+}) {
 	const session = getSession(sessionId);
 	if (!session) return null;
 
+	const nextTitle = String(title || session.title || '').trim();
+	const nextSubtitle = String(subtitle || session.subtitle || '').trim();
+	const nextDate = String(date || session.date || '').trim();
+	const nextTime = String(time || session.time || '').trim();
 	const nextCourt = Math.max(1, Number(court_count || 0));
 	const nextRacket = Math.max(0, Number(racket_count || 0));
 	const nextShuttlecock = Boolean(buy_shuttlecock);
 
 	const updateData = {
+		title: nextTitle || session.title,
+		subtitle: nextSubtitle || session.subtitle,
+		date: nextDate || session.date,
+		time: nextTime || session.time,
 		court_count: nextCourt,
 		racket_count: nextRacket,
 		buy_shuttlecock: nextShuttlecock

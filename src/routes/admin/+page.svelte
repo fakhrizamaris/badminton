@@ -263,6 +263,11 @@
 	// ── Session List ──────────────────────────────────────────────
 	let expandedSessionId = $state(null);
 	let editSessionId = $state(null);
+	let editTitle = $state("");
+	let editSubtitle = $state("");
+	let editDate = $state("");
+	let editStartTime = $state("19:00");
+	let editEndTime = $state("21:00");
 	let editCourts = $state(1);
 	let editRackets = $state(0);
 	let editShuttlecock = $state(false);
@@ -276,7 +281,17 @@
 	}
 
 	function openSessionEditor(session) {
+		const [startRaw, endRaw] = String(session.time || "19:00")
+			.split(" - ")
+			.map((v) => v.trim());
+
+		expandedSessionId = session.id;
 		editSessionId = session.id;
+		editTitle = session.title || "";
+		editSubtitle = session.subtitle || "";
+		editDate = session.date || "";
+		editStartTime = normalizeToTimeInput(startRaw || "19:00");
+		editEndTime = normalizeToTimeInput(endRaw || "21:00");
 		editCourts = session.court_count || 1;
 		editRackets = session.racket_count || 0;
 		editShuttlecock = !!session.buy_shuttlecock;
@@ -286,19 +301,70 @@
 		editSessionId = null;
 	}
 
+	function normalizeToTimeInput(rawValue) {
+		const raw = String(rawValue || "").trim();
+		if (!raw) return "";
+
+		const hmMatch = raw.match(/^(\d{1,2}):(\d{1,2})$/);
+		if (hmMatch) {
+			const h = Math.max(0, Math.min(23, Number(hmMatch[1])));
+			const m = Math.max(0, Math.min(59, Number(hmMatch[2])));
+			return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+		}
+
+		const ampmMatch = raw.match(/^(\d{1,2})(?::(\d{1,2}))?\s*(AM|PM)$/i);
+		if (ampmMatch) {
+			let h = Number(ampmMatch[1]) % 12;
+			const m = Math.max(
+				0,
+				Math.min(59, Number(ampmMatch[2] || "0")),
+			);
+			if (ampmMatch[3].toUpperCase() === "PM") h += 12;
+			return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+		}
+
+		const hourOnly = Number(raw);
+		if (!Number.isNaN(hourOnly) && hourOnly >= 0 && hourOnly <= 23) {
+			return `${String(hourOnly).padStart(2, "0")}:00`;
+		}
+
+		return "";
+	}
+
 	async function saveSessionEditor(session) {
+		if (!editTitle.trim()) {
+			showToast("Judul sesi wajib diisi", "error");
+			return;
+		}
+		if (!editDate) {
+			showToast("Tanggal sesi wajib diisi", "error");
+			return;
+		}
+		if (!editStartTime) {
+			showToast("Jam mulai wajib diisi", "error");
+			return;
+		}
+
+		const finalTime = editEndTime
+			? `${editStartTime} - ${editEndTime}`
+			: editStartTime;
+
 		isSavingSessionConfig = true;
 		try {
 			await updateSessionConfig(session.id, {
+				title: editTitle,
+				subtitle: editSubtitle,
+				date: editDate,
+				time: finalTime,
 				court_count: editCourts,
 				racket_count: editRackets,
 				buy_shuttlecock: editShuttlecock,
 			});
-			showToast("Session config updated", "success");
+			showToast("Session berhasil diperbarui", "success");
 			editSessionId = null;
 		} catch (err) {
 			console.error("Failed to update session config:", err);
-			showToast("Failed to update session config", "error");
+			showToast("Gagal update sesi", "error");
 		} finally {
 			isSavingSessionConfig = false;
 		}
@@ -1283,6 +1349,75 @@
 										>
 											Session Config Editor
 										</p>
+										<div class="space-y-3 mb-3">
+											<div>
+												<label
+													for="edit-title"
+													class="block text-[10px] font-semibold text-text-tertiary mb-1"
+													>Judul sesi</label
+												>
+												<input
+													id="edit-title"
+													type="text"
+													bind:value={editTitle}
+													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
+												/>
+											</div>
+											<div>
+												<label
+													for="edit-subtitle"
+													class="block text-[10px] font-semibold text-text-tertiary mb-1"
+													>Subtitle</label
+												>
+												<input
+													id="edit-subtitle"
+													type="text"
+													bind:value={editSubtitle}
+													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
+												/>
+											</div>
+										</div>
+										<div class="grid grid-cols-3 gap-3 mb-3">
+											<div class="col-span-3 sm:col-span-1">
+												<label
+													for="edit-date"
+													class="block text-[10px] font-semibold text-text-tertiary mb-1"
+													>Tanggal</label
+												>
+												<input
+													id="edit-date"
+													type="date"
+													bind:value={editDate}
+													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
+												/>
+											</div>
+											<div class="col-span-3 sm:col-span-1">
+												<label
+													for="edit-start-time"
+													class="block text-[10px] font-semibold text-text-tertiary mb-1"
+													>Jam mulai</label
+												>
+												<input
+													id="edit-start-time"
+													type="time"
+													bind:value={editStartTime}
+													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
+												/>
+											</div>
+											<div class="col-span-3 sm:col-span-1">
+												<label
+													for="edit-end-time"
+													class="block text-[10px] font-semibold text-text-tertiary mb-1"
+													>Jam selesai</label
+												>
+												<input
+													id="edit-end-time"
+													type="time"
+													bind:value={editEndTime}
+													class="w-full px-3 py-2 bg-surface rounded-xl border border-border/60 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-navy/20"
+												/>
+											</div>
+										</div>
 										<div
 											class="grid grid-cols-2 gap-3 mb-3"
 										>
