@@ -728,7 +728,9 @@
 		>
 			Our Energy<br />& Spirit
 		</h2>
-		<p class="text-white/80 leading-relaxed text-sm lg:text-base mb-8 sm:mb-12">
+		<p
+			class="text-white/80 leading-relaxed text-sm lg:text-base mb-8 sm:mb-12"
+		>
 			Feel the passion, the friendship, and the unrelenting drive on the
 			court. This collection is a tribute to the vibrant community that
 			gathers weekly, celebrating every smash, every laugh, and the pure
@@ -745,7 +747,9 @@
 			>
 		</div>
 
-		<div class="lg:absolute bottom-12 left-12 xl:left-16 hidden lg:block opacity-70 mt-20">
+		<div
+			class="lg:absolute bottom-12 left-12 xl:left-16 hidden lg:block opacity-70 mt-20"
+		>
 			<div class="w-px h-12 bg-white/30"></div>
 		</div>
 	</div>

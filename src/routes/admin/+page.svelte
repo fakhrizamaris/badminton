@@ -519,7 +519,9 @@
 			class="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
 		>
 			<div>
-				<h1 class="text-xl sm:text-2xl font-bold text-text-primary leading-tight">
+				<h1
+					class="text-xl sm:text-2xl font-bold text-text-primary leading-tight"
+				>
 					Admin Dashboard
 				</h1>
 				<p class="text-xs sm:text-sm text-text-secondary mt-1">
@@ -586,7 +588,9 @@
 				>
 					Total Revenue
 				</p>
-				<p class="text-xl sm:text-lg font-black text-success leading-tight">
+				<p
+					class="text-xl sm:text-lg font-black text-success leading-tight"
+				>
 					{formatCurrency(getCommunityStats().totalRevenue)}
 				</p>
 			</div>
@@ -598,7 +602,9 @@
 				>
 					Total RSVP
 				</p>
-				<p class="text-xl sm:text-lg font-black text-text-primary leading-tight">
+				<p
+					class="text-xl sm:text-lg font-black text-text-primary leading-tight"
+				>
 					{getCommunityStats().totalPlayers}
 				</p>
 			</div>
@@ -610,7 +616,9 @@
 				>
 					Unique Players
 				</p>
-				<p class="text-xl sm:text-lg font-black text-text-primary leading-tight">
+				<p
+					class="text-xl sm:text-lg font-black text-text-primary leading-tight"
+				>
 					{getCommunityStats().uniquePlayers}
 				</p>
 			</div>
@@ -623,7 +631,8 @@
 					Pending Proofs
 				</p>
 				<p
-					class="text-xl sm:text-lg font-black {pendingVerifications.length > 0
+					class="text-xl sm:text-lg font-black {pendingVerifications.length >
+					0
 						? 'text-warning'
 						: 'text-text-tertiary'} leading-tight"
 				>
@@ -696,15 +705,20 @@
 				? 'bg-text-tertiary/10 text-text-secondary'
 				: 'bg-navy text-white shadow-sm shadow-navy/20'}"
 		>
-			{#if showCreateForm}<X size={15} /><span class="hidden sm:inline">Cancel</span><span class="sm:hidden">Close</span>{:else}<Plus
+			{#if showCreateForm}<X size={15} /><span class="hidden sm:inline"
+					>Cancel</span
+				><span class="sm:hidden">Close</span>{:else}<Plus
 					size={15}
-				/><span class="hidden sm:inline">New Session</span><span class="sm:hidden">Session</span>{/if}
+				/><span class="hidden sm:inline">New Session</span><span
+					class="sm:hidden">Session</span
+				>{/if}
 		</button>
 		<button
 			onclick={openMapsConfig}
 			class="h-12 sm:h-auto sm:py-3 bg-surface border border-border/50 rounded-2xl text-[0.95rem] sm:text-sm font-semibold text-text-primary shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 sm:gap-2 hover:shadow-md"
 		>
-			<Map size={15} /><span class="hidden sm:inline">Edit Maps</span><span class="sm:hidden">Maps</span>
+			<Map size={15} /><span class="hidden sm:inline">Edit Maps</span
+			><span class="sm:hidden">Maps</span>
 		</button>
 	</div>
 
@@ -932,7 +946,9 @@
 				<QrCode size={18} />
 			</div>
 			<div>
-				<h3 class="text-[0.95rem] sm:text-sm font-bold text-text-primary">
+				<h3
+					class="text-[0.95rem] sm:text-sm font-bold text-text-primary"
+				>
 					Payment Settings
 				</h3>
 				<p
@@ -974,7 +990,9 @@
 					{/if}
 				</div>
 				<div class="flex-1 text-center sm:text-left">
-					<p class="text-sm sm:text-xs font-bold text-text-primary mb-1">
+					<p
+						class="text-sm sm:text-xs font-bold text-text-primary mb-1"
+					>
 						Active QRIS Code
 					</p>
 					<p
@@ -1195,9 +1213,13 @@
 						class="bg-surface rounded-3xl border border-border/50 shadow-sm overflow-hidden animate-fade-in-up"
 					>
 						<div class="p-4">
-							<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+							<div
+								class="flex flex-col gap-3 sm:flex-row sm:items-center"
+							>
 								<div class="flex-1 min-w-0">
-									<div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+									<div
+										class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5"
+									>
 										<h3
 											class="text-[0.95rem] sm:text-sm font-semibold text-text-primary leading-tight break-words"
 										>
@@ -1253,12 +1275,15 @@
 												: "shuttlecock off"}</span
 										>
 										<span>·</span>
-										<span class="text-base sm:text-lg font-extrabold text-navy"
+										<span
+											class="text-base sm:text-lg font-extrabold text-navy"
 											>{formatCurrency(total)}</span
 										>
 									</div>
 								</div>
-								<div class="grid grid-cols-5 gap-1.5 sm:flex sm:items-center sm:gap-2 w-full sm:w-auto">
+								<div
+									class="grid grid-cols-5 gap-1.5 sm:flex sm:items-center sm:gap-2 w-full sm:w-auto"
+								>
 									<button
 										onclick={async () =>
 											await toggleSessionShuttlecock(
@@ -1289,8 +1314,12 @@
 										class="px-0 sm:px-2.5 h-8 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-semibold border transition-all active:scale-90 bg-bg text-text-secondary border-border/60 flex items-center justify-center gap-1"
 									>
 										<Pencil size={14} class="sm:hidden" />
-										<span class="hidden sm:inline">Edit</span>
-										<span class="sr-only sm:hidden">Edit</span>
+										<span class="hidden sm:inline"
+											>Edit</span
+										>
+										<span class="sr-only sm:hidden"
+											>Edit</span
+										>
 									</button>
 									<button
 										onclick={async () => {
