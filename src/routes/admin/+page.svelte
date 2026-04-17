@@ -42,6 +42,7 @@
 		Map,
 		LogOut,
 		Clock as ClockIcon,
+		Feather,
 		Image as ImageIcon,
 		Pencil,
 		Upload,
@@ -1295,11 +1296,12 @@
 											: 'bg-bg text-text-secondary border-border/60'}"
 									>
 										<span class="sm:hidden">
-											{#if session.buy_shuttlecock}
-												<Check size={14} />
-											{:else}
-												<X size={14} />
-											{/if}
+											<Feather
+												size={14}
+												class={session.buy_shuttlecock
+													? "opacity-100"
+													: "opacity-45"}
+											/>
 										</span>
 										<span class="hidden sm:inline"
 											>{session.buy_shuttlecock
