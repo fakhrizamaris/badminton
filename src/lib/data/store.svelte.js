@@ -404,13 +404,46 @@ export async function updateQRIS(file) {
 	await removeStorageFileIfExists('gallery', oldQrisUrl);
 }
 
-export async function updateMapsUrl(newUrl) {
-	// Pastikan kita hanya mengambil URL jika user memasukkan tag iframe lengkap
-	let cleanUrl = newUrl.trim();
-	if (cleanUrl.includes('<iframe')) {
-		const match = cleanUrl.match(/src="([^"]+)"/);
-		if (match) cleanUrl = match[1];
+function normalizeMapsInput(rawInput) {
+	const raw = String(rawInput || '').trim();
+	if (!raw) throw new Error('URL peta tidak boleh kosong.');
+
+	// Support full iframe snippet from Google Maps embed copy button.
+	const iframeSrcMatch = raw.match(/<iframe[^>]*\ssrc\s*=\s*(["'])(.*?)\1/i);
+	const iframeSrcNoQuoteMatch = raw.match(/<iframe[^>]*\ssrc\s*=\s*([^\s>]+)/i);
+
+	let candidate = raw;
+	if (iframeSrcMatch?.[2]) {
+		candidate = iframeSrcMatch[2];
+	} else if (iframeSrcNoQuoteMatch?.[1]) {
+		candidate = iframeSrcNoQuoteMatch[1];
 	}
+
+	// Support coordinate input like: "1.126242,104.095825"
+	if (/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(candidate)) {
+		const [lat, lng] = candidate.split(',').map((v) => v.trim());
+		candidate = `https://maps.google.com/maps?q=${lat},${lng}&hl=id&z=17&output=embed`;
+	}
+
+	// Handle HTML-escaped URLs from editors.
+	candidate = candidate.replace(/&amp;/g, '&').trim();
+
+	let parsed;
+	try {
+		parsed = new URL(candidate);
+	} catch {
+		throw new Error('Format URL peta tidak valid. Gunakan URL embed Google Maps atau iframe embed.');
+	}
+
+	if (!['http:', 'https:'].includes(parsed.protocol)) {
+		throw new Error('URL peta harus menggunakan http atau https.');
+	}
+
+	return parsed.toString();
+}
+
+export async function updateMapsUrl(newUrl) {
+	const cleanUrl = normalizeMapsInput(newUrl);
 
 	const { error } = await supabase
 		.from('settings')
